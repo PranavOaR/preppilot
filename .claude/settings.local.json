@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp:*)",
+      "mcp__stitch__list_projects",
+      "mcp__stitch__list_screens",
+      "mcp__stitch__get_screen",
+      "WebFetch(domain:contribution.usercontent.google.com)",
+      "Bash(npx:*)",
+      "Bash(yes \"No\")",
+      "Bash(shopt -s dotglob)",
+      "Bash(mv /Users/pranavrao/Documents/PrepPilot/prep-pilot/* /Users/pranavrao/Documents/PrepPilot/)",
+      "Bash(mv /Users/pranavrao/Documents/PrepPilot/prep-pilot/.* /Users/pranavrao/Documents/PrepPilot/)",
+      "Bash(cp:*)"
+    ]
+  }
+}
