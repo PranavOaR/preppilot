@@ -22,10 +22,9 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("TTS error:", err);
-    return NextResponse.json(
-      { error: "Text-to-speech failed." },
-      { status: 500 }
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("TTS error:", msg);
+    // Return the actual Sarvam error so the browser console shows it
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

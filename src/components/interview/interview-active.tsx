@@ -149,11 +149,14 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         },
         15000
       );
-      if (!res.ok) throw new Error(`TTS ${res.status}`);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(`TTS ${res.status}: ${errBody.error || "unknown"}`);
+      }
       const buf = await res.arrayBuffer();
       await playAudioBuffer(buf, text);
     } catch (err) {
-      console.warn("TTS failed:", err);
+      console.error("TTS failed:", err);
       // Show the question text prominently so user isn't lost
       setStatusText("(Audio unavailable — read the question above)");
       await new Promise((r) => setTimeout(r, 2000));
