@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const sarvamForm = new FormData();
     sarvamForm.append("file", audioFile, audioFile.name || "recording.webm");
     sarvamForm.append("language_code", language);
-    sarvamForm.append("model", "saarika:v2");
+    sarvamForm.append("model", "saarika:v2.5");
 
     const res = await fetch(`${SARVAM_URL}/speech-to-text`, {
       method: "POST",
@@ -25,14 +25,26 @@ export async function POST(req: NextRequest) {
       body: sarvamForm,
     });
 
+    const responseText = await res.text();
+    console.log(`[STT] Sarvam response ${res.status}:`, responseText.slice(0, 500));
+
     if (!res.ok) {
-      const err = await res.text();
-      console.error("Sarvam STT error:", res.status, err);
-      return NextResponse.json({ error: "Speech-to-text failed.", detail: err }, { status: 500 });
+      return NextResponse.json(
+        { error: "Speech-to-text failed.", detail: responseText },
+        { status: 500 }
+      );
     }
 
-    const data = await res.json();
-    return NextResponse.json({ transcript: data.transcript || "" });
+    let data: any;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      console.error("[STT] Sarvam returned non-JSON:", responseText.slice(0, 200));
+      return NextResponse.json({ error: "Invalid response from Sarvam." }, { status: 500 });
+    }
+
+    const transcript = data.transcript || data.text || "";
+    return NextResponse.json({ transcript });
   } catch (err) {
     console.error("STT route error:", err);
     return NextResponse.json({ error: "Speech-to-text failed." }, { status: 500 });

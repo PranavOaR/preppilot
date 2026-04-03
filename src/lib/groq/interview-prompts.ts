@@ -98,7 +98,7 @@ export function buildEvaluationPrompt(
     "- Communication quality (accounting for speech-to-text artifacts)",
     "",
     "Respond in EXACTLY this JSON format:",
-    '{ "score": <number 0-10>, "evaluation": "<2-3 sentence feedback>" }',
+    '{ "score": <number 0-10>, "evaluation": "<2-3 sentence written feedback>", "comment": "<1-2 sentence natural spoken remark to the candidate, as if you are reacting verbally>" }',
     "",
     "Output ONLY the JSON. No markdown, no code blocks.",
   ].join("\n");
