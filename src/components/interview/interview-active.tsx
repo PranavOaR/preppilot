@@ -145,7 +145,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, language: "en-IN", speaker: "meera" }),
+          body: JSON.stringify({ text, language: "en-IN", speaker: "anushka" }),
         },
         15000
       );

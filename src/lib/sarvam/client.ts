@@ -4,7 +4,7 @@ const SARVAM_API_KEY = (process.env.SARVAM_API_KEY || "").trim();
 export async function textToSpeech(
   text: string,
   language: string = "en-IN",
-  speaker: string = "meera"
+  speaker: string = "anushka"
 ): Promise<ArrayBuffer> {
   const res = await fetch(`${SARVAM_API_URL}/text-to-speech`, {
     method: "POST",
