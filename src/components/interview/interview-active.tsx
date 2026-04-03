@@ -12,6 +12,38 @@ import {
 } from "@/lib/db/interviews";
 import type { InterviewQA, InterviewConfig } from "@/lib/types/interview";
 
+// ── WAV encoder: converts Float32 PCM samples → WAV ArrayBuffer ─────────────
+function float32ToWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const dataSize = samples.length * blockAlign;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buf);
+  const writeStr = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, "data");
+  view.setUint32(40, dataSize, true);
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(44 + i * 2, s * (s < 0 ? 32768 : 32767), true);
+  }
+  return buf;
+}
+
 type Phase =
   | "starting"
   | "generating"
@@ -121,9 +153,10 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
       const buf = await res.arrayBuffer();
       await playAudioBuffer(buf, text);
     } catch (err) {
-      console.warn("TTS failed, continuing silently:", err);
-      // Short pause so the UI doesn't feel broken
-      await new Promise((r) => setTimeout(r, 800));
+      console.warn("TTS failed:", err);
+      // Show the question text prominently so user isn't lost
+      setStatusText("(Audio unavailable — read the question above)");
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
 
@@ -174,14 +207,24 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
       recorder.onstop = async () => {
         stopRecordingRef.current = null;
         setPhase("processing");
-        setStatusText("Transcribing your answer via Sarvam AI...");
+        setStatusText("Processing your answer...");
 
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(chunks, { type: mimeType });
 
         try {
+          // Sarvam STT only accepts WAV/MP3. MediaRecorder in Chrome produces
+          // WebM/Opus. Decode with AudioContext then re-encode as WAV.
+          const rawBuffer = await blob.arrayBuffer();
+          const decodeCtx = new AudioContext();
+          const decoded = await decodeCtx.decodeAudioData(rawBuffer);
+          await decodeCtx.close();
+
+          const wavBuffer = float32ToWav(decoded.getChannelData(0), decoded.sampleRate);
+          const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });
+
           const form = new FormData();
-          form.append("audio", blob, "recording.webm");
+          form.append("audio", wavBlob, "recording.wav");
           form.append("language", config.language || "en-IN");
 
           const res = await fetchWithTimeout(
