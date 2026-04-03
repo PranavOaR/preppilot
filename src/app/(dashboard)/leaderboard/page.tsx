@@ -155,6 +155,7 @@ export default function ContestsPage() {
               contest={contest}
               participantCount={participantCounts[contest.id] || 0}
               hasJoined={joinedContests[contest.id] || false}
+              computedStatus={computeContestStatus(contest)}
               onJoin={handleJoin}
               joining={joiningId === contest.id}
             />

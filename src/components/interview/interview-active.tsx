@@ -47,26 +47,67 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
   // ── Browser TTS (instant, no API call) ──────────────────────────────────
   function speakText(text: string): Promise<void> {
     return new Promise((resolve) => {
-      if (!window.speechSynthesis) { resolve(); return; }
+      if (typeof window === "undefined" || !window.speechSynthesis) {
+        resolve();
+        return;
+      }
+
       window.speechSynthesis.cancel();
 
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "en-IN";
-      utter.rate = 0.92;
-      utter.pitch = 1.0;
+      function doSpeak() {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "en-IN";
+        utter.rate = 0.92;
+        utter.pitch = 1.0;
 
-      // Prefer a natural English voice if available
+        const voices = window.speechSynthesis.getVoices();
+        const pick =
+          voices.find((v) => v.lang.startsWith("en") && /google|neural|premium/i.test(v.name)) ||
+          voices.find((v) => v.lang.startsWith("en-IN")) ||
+          voices.find((v) => v.lang.startsWith("en")) ||
+          voices[0];
+        if (pick) utter.voice = pick;
+
+        let resolved = false;
+        function done() {
+          if (!resolved) { resolved = true; resolve(); }
+        }
+
+        utter.onend = done;
+        utter.onerror = done;
+
+        // Hard timeout: if onend never fires (Chrome bug), move on after estimated duration
+        const estimatedMs = Math.max(3000, (text.split(" ").length / 2.5) * 1000);
+        const timeout = setTimeout(done, estimatedMs + 2000);
+        utter.onend = () => { clearTimeout(timeout); done(); };
+        utter.onerror = () => { clearTimeout(timeout); done(); };
+
+        window.speechSynthesis.speak(utter);
+
+        // Chrome sometimes pauses synthesis silently — keep it alive
+        const keepAlive = setInterval(() => {
+          if (resolved) { clearInterval(keepAlive); return; }
+          if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+        }, 5000);
+        utter.onend = () => { clearTimeout(timeout); clearInterval(keepAlive); done(); };
+        utter.onerror = () => { clearTimeout(timeout); clearInterval(keepAlive); done(); };
+      }
+
+      // Voices may not be loaded yet on first call
       const voices = window.speechSynthesis.getVoices();
-      const pick =
-        voices.find((v) => v.lang.startsWith("en") && /google|neural|premium/i.test(v.name)) ||
-        voices.find((v) => v.lang.startsWith("en-IN")) ||
-        voices.find((v) => v.lang.startsWith("en")) ||
-        voices[0];
-      if (pick) utter.voice = pick;
-
-      utter.onend = () => resolve();
-      utter.onerror = () => resolve();
-      window.speechSynthesis.speak(utter);
+      if (voices.length > 0) {
+        doSpeak();
+      } else {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.onvoiceschanged = null;
+          doSpeak();
+        };
+        // If onvoiceschanged never fires, fall back after 1s
+        setTimeout(() => {
+          if (window.speechSynthesis.getVoices().length === 0) resolve();
+          else doSpeak();
+        }, 1000);
+      }
     });
   }
 
@@ -129,20 +170,30 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         }, 2000);
       };
 
+      let restartCount = 0;
+      const MAX_RESTARTS = 8;
+
       recognition.onerror = (e: any) => {
         if (e.error === "aborted") return;
         if (e.error === "no-speech") {
-          // Chrome fires this after a few seconds; restart silently
-          if (!done) try { recognition.start(); } catch { finish(accumulated); }
+          // Chrome fires this when no speech detected — restart up to max
+          if (!done && restartCount < MAX_RESTARTS) {
+            restartCount++;
+            try { recognition.start(); } catch { finish(accumulated); }
+          } else if (!done) {
+            finish(accumulated || "");
+          }
           return;
         }
         finish(accumulated || "[transcription error]");
       };
 
       recognition.onend = () => {
-        // Chrome stops recognition spontaneously sometimes — restart if still listening
-        if (!done) {
+        if (!done && restartCount < MAX_RESTARTS) {
+          restartCount++;
           try { recognition.start(); } catch { finish(accumulated); }
+        } else if (!done) {
+          finish(accumulated);
         }
       };
 
@@ -152,6 +203,21 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         finish("[Could not start microphone]");
       }
     });
+  }
+
+  // ── Fetch with timeout so Groq never hangs forever ──────────────────────
+  async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 20000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err: any) {
+      clearTimeout(timer);
+      if (err.name === "AbortError") throw new Error("Request timed out");
+      throw err;
+    }
   }
 
   // ── Generate feedback and navigate ──────────────────────────────────────
@@ -165,7 +231,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     } catch {}
 
     try {
-      const res = await fetch("/api/interview/feedback", {
+      const res = await fetchWithTimeout("/api/interview/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -173,7 +239,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
           targetCompany: config.targetCompany,
           qas: allQAs,
         }),
-      });
+      }, 30000);
       const feedback = await res.json();
       const overallScore = feedback.overallScore || 50;
 
@@ -213,9 +279,17 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         setFinalTranscript("");
         setQuestionIndex(i);
 
+        const FALLBACK_QUESTIONS = [
+          "Tell me about yourself and your technical background.",
+          "Walk me through a challenging problem you solved recently.",
+          "How do you approach debugging a complex issue?",
+          "Describe a project you're proud of and what you learned from it.",
+          "What's your approach to writing clean, maintainable code?",
+        ];
+
         let question = "";
         try {
-          const res = await fetch("/api/interview/question", {
+          const res = await fetchWithTimeout("/api/interview/question", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -225,11 +299,12 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
               totalQuestions: config.totalQuestions,
               previousQAs: allQAs,
             }),
-          });
+          }, 20000);
           const data = await res.json();
-          question = data.question || "Tell me about a challenging problem you recently solved.";
-        } catch {
-          question = "Walk me through a technical challenge you faced and how you resolved it.";
+          question = data.question || FALLBACK_QUESTIONS[i % FALLBACK_QUESTIONS.length];
+        } catch (err) {
+          console.error("Question generation failed:", err);
+          question = FALLBACK_QUESTIONS[i % FALLBACK_QUESTIONS.length];
         }
 
         setCurrentQuestion(question);
@@ -256,15 +331,17 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         let score = 5;
         let evaluation = "";
         try {
-          const res = await fetch("/api/interview/evaluate", {
+          const res = await fetchWithTimeout("/api/interview/evaluate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ question, transcript, type: config.type }),
-          });
+          }, 20000);
           const data = await res.json();
           score = data.score ?? 5;
           evaluation = data.evaluation ?? "";
-        } catch {}
+        } catch (err) {
+          console.error("Evaluation failed:", err);
+        }
 
         const qa: InterviewQA = {
           index: allQAs.length,

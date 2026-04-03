@@ -21,6 +21,15 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Unsupported language" }, { status: 400 });
     }
 
+    // Prepend standard headers for C/C++ if the user's code doesn't already have them.
+    // Judge0 compiles code as-is, so missing includes cause compile errors.
+    let processedCode = code;
+    if (language === "cpp" && !code.includes("#include")) {
+      processedCode = `#include <bits/stdc++.h>\nusing namespace std;\n\n${code}`;
+    } else if (language === "c" && !code.includes("#include")) {
+      processedCode = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <math.h>\n\n${code}`;
+    }
+
     // For "run" mode, only use visible test cases
     // For "submit" mode, use all test cases
     const casesToRun =
@@ -29,7 +38,7 @@ export async function POST(request: NextRequest) {
         : testCases;
 
     const results = await runAgainstTestCases(
-      code,
+      processedCode,
       languageId,
       casesToRun.map((tc) => ({
         input: tc.input,

@@ -8,6 +8,15 @@ function getHeaders() {
   };
 }
 
+function toBase64(str: string): string {
+  return Buffer.from(str, "utf-8").toString("base64");
+}
+
+function fromBase64(str: string | null): string {
+  if (!str) return "";
+  return Buffer.from(str, "base64").toString("utf-8");
+}
+
 interface SubmissionResult {
   token: string;
   stdout: string | null;
@@ -27,24 +36,31 @@ export async function submitCode(
   stdin: string,
   expectedOutput?: string
 ): Promise<SubmissionResult> {
-  // Create submission
-  const createRes = await fetch(`${API_URL}/submissions?base64_encoded=false&wait=true`, {
+  const res = await fetch(`${API_URL}/submissions?base64_encoded=true&wait=true`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
-      source_code: sourceCode,
+      source_code: toBase64(sourceCode),
       language_id: languageId,
-      stdin: stdin,
-      expected_output: expectedOutput,
+      stdin: toBase64(stdin),
+      expected_output: expectedOutput ? toBase64(expectedOutput) : undefined,
     }),
   });
 
-  if (!createRes.ok) {
-    const errorText = await createRes.text();
-    throw new Error(`Judge0 API error: ${createRes.status} - ${errorText}`);
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Judge0 API error: ${res.status} - ${errorText}`);
   }
 
-  return createRes.json();
+  const result = await res.json();
+
+  // Decode base64 fields in the response
+  return {
+    ...result,
+    stdout: result.stdout ? fromBase64(result.stdout) : null,
+    stderr: result.stderr ? fromBase64(result.stderr) : null,
+    compile_output: result.compile_output ? fromBase64(result.compile_output) : null,
+  };
 }
 
 export interface TestCaseResult {
@@ -73,7 +89,6 @@ export async function runAgainstTestCases(
       const expectedTrimmed = tc.expectedOutput.trim();
       const passed = actualOutput === expectedTrimmed;
 
-      // Status IDs: 3 = Accepted, 4 = Wrong Answer, 5 = TLE, 6 = Compilation Error, etc.
       let status = result.status.description;
       if (result.status.id === 3) {
         status = passed ? "Accepted" : "Wrong Answer";
@@ -82,7 +97,7 @@ export async function runAgainstTestCases(
       results.push({
         input: tc.input,
         expectedOutput: tc.expectedOutput,
-        actualOutput: actualOutput,
+        actualOutput,
         passed: passed && result.status.id === 3,
         status,
         time: result.time,

@@ -11,7 +11,20 @@
       "Bash(shopt -s dotglob)",
       "Bash(mv /Users/pranavrao/Documents/PrepPilot/prep-pilot/* /Users/pranavrao/Documents/PrepPilot/)",
       "Bash(mv /Users/pranavrao/Documents/PrepPilot/prep-pilot/.* /Users/pranavrao/Documents/PrepPilot/)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(npm run:*)",
+      "Bash(find /Users/pranavrao/Documents/PrepPilot/node_modules/next/dist/docs -name *middleware* -o -name *route-handler*)",
+      "Bash(npm install:*)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s --request GET --url https://judge0-ce.p.rapidapi.com/languages --header 'x-rapidapi-host: judge0-ce.p.rapidapi.com' --header 'x-rapidapi-key: 72a0c05dc2msh09b99fb462fcc2ep1027c9jsn60d9a99cd725')",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(ls /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/settings)",
+      "Bash(find /Users/pranavrao/Documents/PrepPilot -name firestore.rules -o -name *firestore* -type f)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

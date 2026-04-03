@@ -11,7 +11,7 @@ import {
   getContestUserSubmissions,
 } from "@/lib/db/contest-submissions";
 import { useContestRealtime } from "@/hooks/use-contest-realtime";
-import { useContestStatus } from "@/hooks/use-contest-status";
+import { useContestStatus, computeContestStatus } from "@/hooks/use-contest-status";
 import { ContestTimer } from "@/components/practice/contest-timer";
 import type { Problem } from "@/lib/types";
 
@@ -47,6 +47,19 @@ export default function ContestTakePage() {
 
   const { contest, loading: contestLoading } = useContestRealtime(contestId);
   const computedStatus = useContestStatus(contest);
+
+  // Request fullscreen on mount (exam mode)
+  useEffect(() => {
+    const el = document.documentElement;
+    if (el.requestFullscreen) {
+      el.requestFullscreen().catch(() => {}); // ignore if denied
+    }
+    return () => {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, []);
 
   const [problems, setProblems] = useState<Problem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -86,8 +99,8 @@ export default function ContestTakePage() {
         return;
       }
 
-      // Check contest is active (via computed status)
-      if (computedStatus !== "active") {
+      // Check contest is active — use synchronous compute to avoid null race
+      if (computeContestStatus(contest) !== "active") {
         router.replace(`/leaderboard/${contestId}`);
         return;
       }

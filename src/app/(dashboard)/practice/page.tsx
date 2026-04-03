@@ -4,7 +4,6 @@ import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { ProblemFilters } from "@/components/practice/problem-filters";
 import { RecommendedProblem } from "@/components/practice/recommended-problem";
-import { PracticeStats } from "@/components/practice/practice-stats";
 import { ProblemsTable } from "@/components/practice/problems-table";
 
 function PracticeContent() {
@@ -33,9 +32,6 @@ function PracticeContent() {
 
       {/* Recommended Problem */}
       <RecommendedProblem />
-
-      {/* Stats Row */}
-      <PracticeStats />
 
       {/* Problems Table */}
       <ProblemsTable filters={filters} />
