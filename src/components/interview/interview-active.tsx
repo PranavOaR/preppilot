@@ -254,6 +254,10 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
 
   // ── Main interview loop (runs once on mount) ─────────────────────────────
   useEffect(() => {
+    // Reset abort flag — critical for React Strict Mode which double-invokes
+    // effects in development (cleanup sets abortRef=true, second mount must reset it)
+    abortRef.current = false;
+    qasRef.current = [];
     const allQAs: InterviewQA[] = [];
 
     const FALLBACK_QUESTIONS = [
@@ -270,7 +274,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
 
         // 1. Generate question via Groq
         setPhase("generating");
-        setStatusText("Interviewer is thinking...");
+        setStatusText(i === 0 ? "Connecting to AI interviewer..." : "Interviewer is thinking...");
         setCurrentQuestion("");
         setLiveTranscript("");
         setQuestionIndex(i);
@@ -290,7 +294,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
                 previousQAs: allQAs,
               }),
             },
-            20000
+            10000
           );
           const data = await res.json();
           question = data.question || FALLBACK_QUESTIONS[i % FALLBACK_QUESTIONS.length];
