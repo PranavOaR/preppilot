@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 
 const mainLinks = [
@@ -37,9 +36,6 @@ export function TopNav() {
             <span className="font-serif text-xl text-on-surface font-medium">
               PrepPilot
             </span>
-            <span className="text-outline text-xs hidden md:inline">
-              Technical Atelier
-            </span>
           </Link>
 
           {/* Main Nav */}
@@ -68,10 +64,6 @@ export function TopNav() {
 
         {/* Right Side */}
         <div className="flex items-center gap-3">
-          <Button className="gradient-primary text-on-primary text-sm font-medium px-4 h-9 hover:opacity-90 transition-opacity cursor-pointer">
-            Start Sprint
-          </Button>
-
           {isAdmin && (
             <Link
               href="/admin"

@@ -37,6 +37,29 @@ export async function POST(request: NextRequest) {
         ? testCases.filter((tc) => !tc.isHidden)
         : testCases;
 
+    // For C/C++: if the code has no main function, Judge0 will produce a linker
+    // error. Detect this early and return a clear message instead.
+    if ((language === "cpp" || language === "c") && !/\bint\s+main\b/.test(processedCode)) {
+      const hint =
+        language === "cpp"
+          ? "Your C++ code must have a `int main()` function that reads from stdin and prints to stdout. The starter code is a LeetCode-style template — add a main() that parses the input and calls your function."
+          : "Your C code must have a `int main()` function that reads from stdin and prints to stdout.";
+      const stubResults = casesToRun.map((tc) => ({
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        actualOutput: "",
+        passed: false,
+        status: "Compile Error",
+        time: null,
+        memory: null,
+        error: hint,
+      }));
+      return Response.json({
+        results: stubResults,
+        summary: { total: stubResults.length, passed: 0, allPassed: false, mode },
+      });
+    }
+
     const results = await runAgainstTestCases(
       processedCode,
       languageId,
@@ -46,13 +69,25 @@ export async function POST(request: NextRequest) {
       }))
     );
 
-    const totalPassed = results.filter((r) => r.passed).length;
+    // Replace raw linker "undefined reference to `main'" with a friendly message
+    const processedResults = results.map((r) => {
+      if (r.error && r.error.includes("undefined reference to `main'")) {
+        return {
+          ...r,
+          error:
+            "Compile Error: Your C/C++ code must include an `int main()` function. Write a complete program that reads input from stdin and prints to stdout.",
+        };
+      }
+      return r;
+    });
+
+    const totalPassed = processedResults.filter((r) => r.passed).length;
     const allPassed = totalPassed === results.length;
 
     return Response.json({
-      results,
+      results: processedResults,
       summary: {
-        total: results.length,
+        total: processedResults.length,
         passed: totalPassed,
         allPassed,
         mode,
