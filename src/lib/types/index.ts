@@ -20,6 +20,12 @@ export interface UserProfile {
   updatedAt: Timestamp | null;
 }
 
+export interface ProblemResource {
+  title: string;
+  url: string;
+  type: "video" | "article" | "similar";
+}
+
 export interface Problem {
   id: string;
   title: string;
@@ -42,6 +48,7 @@ export interface Problem {
   // Aptitude MCQ fields
   options?: string[];
   correctAnswer?: string;
+  resources?: ProblemResource[];
   successRate: number;
   totalSubmissions: number;
   totalAccepted: number;
@@ -121,4 +128,34 @@ export interface Badge {
     type: "problems_solved" | "streak" | "xp" | "contest_rank";
     threshold: number;
   };
+}
+
+export interface MockTestSection {
+  label: string;
+  type: "aptitude" | "dsa";
+  problemIds: string[];
+  count: number;
+}
+
+export interface MockTest {
+  id: string;
+  company: string;
+  title: string;
+  description: string;
+  durationMinutes: number;
+  sections: MockTestSection[];
+  difficulty: "easy" | "medium" | "hard";
+  tags: string[];
+}
+
+export interface MockTestAttempt {
+  id: string;
+  testId: string;
+  userId: string;
+  startedAt: Timestamp;
+  submittedAt?: Timestamp;
+  answers: Record<string, string>;
+  score: number;
+  sectionScores: Record<string, number>;
+  status: "in_progress" | "submitted" | "timed_out";
 }

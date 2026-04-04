@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Problem } from "@/lib/types";
+import type { Problem, ProblemResource } from "@/lib/types";
 
 interface ProblemFormProps {
   initialData?: Partial<Problem>;
@@ -53,6 +53,11 @@ export function ProblemForm({ initialData, onSubmit, submitLabel }: ProblemFormP
   const [options, setOptions] = useState<string[]>(initialData?.options || ["", "", "", ""]);
   const [correctAnswer, setCorrectAnswer] = useState(initialData?.correctAnswer || "");
 
+  // Resources
+  const [resources, setResources] = useState<ProblemResource[]>(
+    initialData?.resources || []
+  );
+
   const xpReward = difficulty === "easy" ? 10 : difficulty === "medium" ? 25 : 50;
 
   function handleTitleChange(val: string) {
@@ -98,6 +103,7 @@ export function ProblemForm({ initialData, onSubmit, submitLabel }: ProblemFormP
         data.testCases = [];
       }
 
+      data.resources = resources.filter((r) => r.title && r.url);
       await onSubmit(data);
     } finally {
       setSubmitting(false);
@@ -468,6 +474,80 @@ export function ProblemForm({ initialData, onSubmit, submitLabel }: ProblemFormP
           </div>
         </>
       )}
+
+      {/* Resources */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-on-surface text-sm font-medium">Resources (optional)</label>
+          <button
+            type="button"
+            onClick={() =>
+              setResources([...resources, { title: "", url: "", type: "article" }])
+            }
+            className="text-xs text-primary-brand hover:underline"
+          >
+            + Add Resource
+          </button>
+        </div>
+        {resources.map((r, i) => (
+          <div
+            key={i}
+            className="grid grid-cols-[1fr_1fr_120px_auto] gap-3 items-start rounded-lg bg-surface-container-low p-3 subtle-border"
+          >
+            <div className="space-y-1">
+              <span className="text-on-surface-variant text-xs">Title</span>
+              <input
+                type="text"
+                value={r.title}
+                onChange={(e) => {
+                  const copy = [...resources];
+                  copy[i] = { ...copy[i], title: e.target.value };
+                  setResources(copy);
+                }}
+                className="w-full px-2 py-1.5 rounded bg-surface-container text-on-surface text-xs subtle-border focus:outline-none focus:ring-1 focus:ring-primary-brand"
+                placeholder="NeetCode Two Sum"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-on-surface-variant text-xs">URL</span>
+              <input
+                type="url"
+                value={r.url}
+                onChange={(e) => {
+                  const copy = [...resources];
+                  copy[i] = { ...copy[i], url: e.target.value };
+                  setResources(copy);
+                }}
+                className="w-full px-2 py-1.5 rounded bg-surface-container text-on-surface text-xs subtle-border focus:outline-none focus:ring-1 focus:ring-primary-brand"
+                placeholder="https://..."
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-on-surface-variant text-xs">Type</span>
+              <select
+                value={r.type}
+                onChange={(e) => {
+                  const copy = [...resources];
+                  copy[i] = { ...copy[i], type: e.target.value as ProblemResource["type"] };
+                  setResources(copy);
+                }}
+                className="w-full px-2 py-1.5 rounded bg-surface-container text-on-surface text-xs subtle-border focus:outline-none focus:ring-1 focus:ring-primary-brand"
+              >
+                <option value="video">Video</option>
+                <option value="article">Article</option>
+                <option value="similar">Similar</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => setResources(resources.filter((_, j) => j !== i))}
+              className="text-error-brand text-xs pt-5 px-1"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
 
       {/* Submit */}
       <div className="flex items-center gap-3 pt-4 border-t border-outline-variant/10">

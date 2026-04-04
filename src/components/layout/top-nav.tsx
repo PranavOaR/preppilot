@@ -10,6 +10,7 @@ const mainLinks = [
   { href: "/practice", icon: "terminal", label: "Practice" },
   { href: "/leaderboard", icon: "emoji_events", label: "Leaderboard" },
   { href: "/interview", icon: "record_voice_over", label: "Interview" },
+  { href: "/mock-tests", icon: "quiz", label: "Mock Tests" },
   { href: "/analytics", icon: "insights", label: "Analytics" },
 ];
 

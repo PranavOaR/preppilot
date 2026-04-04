@@ -34,3 +34,30 @@ export function buildHintPrompt(problem: Problem, level: number): string {
 
   return parts.filter(Boolean).join("\n");
 }
+
+export function buildCodeReviewPrompt(
+  problem: Problem,
+  code: string,
+  language: string,
+  passed: boolean
+): string {
+  return [
+    `You are an expert code reviewer. Review the following ${language} solution for the problem "${problem.title}".`,
+    "",
+    `Problem: ${problem.description}`,
+    "",
+    `Submission status: ${passed ? "All tests passed" : "Some tests failed"}`,
+    "",
+    `Code:\n\`\`\`${language}\n${code}\n\`\`\``,
+    "",
+    "Provide a concise code review. Respond in EXACTLY this JSON format:",
+    "{",
+    '  "timeComplexity": "<e.g. O(n log n)>",',
+    '  "spaceComplexity": "<e.g. O(n)>",',
+    '  "qualityNotes": "<2-3 sentences on readability, edge cases handled, and improvements>",',
+    '  "alternativeApproach": "<1-2 sentences describing a different approach or optimization>"',
+    "}",
+    "",
+    "Output ONLY the JSON. No markdown, no code blocks.",
+  ].join("\n");
+}

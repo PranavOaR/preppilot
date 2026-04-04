@@ -11,6 +11,7 @@ import { LANGUAGE_LABELS } from "@/lib/judge/languages";
 import { recordSolve } from "@/lib/db/record-solve";
 import { useAuth } from "@/contexts/auth-context";
 import { HintPanel } from "@/components/practice/hint-panel";
+import { CodeReviewPanel } from "@/components/practice/code-review-panel";
 import type { Problem } from "@/lib/types";
 import type { TestCaseResult } from "@/lib/judge/client";
 import Link from "next/link";
@@ -59,6 +60,12 @@ export default function ProblemPage() {
     mode: "run" | "submit";
   } | null>(null);
   const [activeTab, setActiveTab] = useState<"editor" | "results">("editor");
+  const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [lastSubmit, setLastSubmit] = useState<{
+    code: string;
+    language: "python" | "c" | "cpp" | "java";
+    passed: boolean;
+  } | null>(null);
 
   useEffect(() => {
     async function fetchProblem() {
@@ -179,6 +186,9 @@ export default function ProblemPage() {
       } else {
         setResults(data.results);
         setSummary(data.summary);
+
+        // Track last submit for code review
+        setLastSubmit({ code, language: selectedLang, passed: data.summary.allPassed });
 
         // Record the submission in Firestore
         if (user) {
@@ -352,6 +362,79 @@ export default function ProblemPage() {
             )}
 
             <HintPanel problemId={problem.id} />
+
+            {/* Resources Panel */}
+            <div className="space-y-2">
+              <button
+                onClick={() => setResourcesOpen(!resourcesOpen)}
+                className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {resourcesOpen ? "expand_less" : "library_books"}
+                </span>
+                <span>Resources</span>
+                {problem.resources && problem.resources.length > 0 && (
+                  <span className="text-xs text-primary-brand">
+                    ({problem.resources.length})
+                  </span>
+                )}
+              </button>
+              {resourcesOpen && (
+                <div className="rounded-lg bg-surface-container-low subtle-border p-4 space-y-3">
+                  {!problem.resources || problem.resources.length === 0 ? (
+                    <p className="text-xs text-on-surface-variant">
+                      No resources added yet for this problem.
+                    </p>
+                  ) : (
+                    (() => {
+                      const videos = problem.resources.filter((r) => r.type === "video");
+                      const articles = problem.resources.filter((r) => r.type === "article");
+                      const similar = problem.resources.filter((r) => r.type === "similar");
+                      return (
+                        <>
+                          {videos.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Videos</p>
+                              {videos.map((r, i) => (
+                                <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
+                                  <span className="material-symbols-outlined text-[14px]">play_circle</span>
+                                  {r.title}
+                                  <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          {articles.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Articles</p>
+                              {articles.map((r, i) => (
+                                <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
+                                  <span className="material-symbols-outlined text-[14px]">article</span>
+                                  {r.title}
+                                  <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          {similar.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Similar Problems</p>
+                              {similar.map((r, i) => (
+                                <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
+                                  <span className="material-symbols-outlined text-[14px]">link</span>
+                                  {r.title}
+                                  <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right: Editor + Results */}
@@ -444,7 +527,17 @@ export default function ProblemPage() {
                     </p>
                   </div>
                 ) : results && summary ? (
-                  <TestResults results={results} summary={summary} />
+                  <>
+                    <TestResults results={results} summary={summary} />
+                    {summary.mode === "submit" && lastSubmit && problem && (
+                      <CodeReviewPanel
+                        problemId={problem.id}
+                        code={lastSubmit.code}
+                        language={lastSubmit.language}
+                        passed={lastSubmit.passed}
+                      />
+                    )}
+                  </>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
                     <span className="material-symbols-outlined text-outline text-4xl">
