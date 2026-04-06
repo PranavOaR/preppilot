@@ -123,9 +123,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("Hint API error:", err);
-    return NextResponse.json(
-      { error: "Failed to generate hint." },
-      { status: 500 }
-    );
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    const userMsg = msg.includes("GROQ_API_KEY")
+      ? "AI hints are not configured. Add GROQ_API_KEY to your .env.local and restart the server."
+      : "Failed to generate hint. Please try again.";
+    return NextResponse.json({ error: userMsg }, { status: 500 });
   }
 }
