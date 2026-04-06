@@ -391,13 +391,6 @@ export default function ContestTakePage() {
                       </button>
                     ))}
                   </div>
-                  {/* C++ unsupported warning */}
-                  {selectedLang === "cpp" && currentProblem.starterCode?.cpp && /ListNode|TreeNode|vector\s*<\s*vector/.test(currentProblem.starterCode.cpp) && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 text-xs">
-                      <span className="material-symbols-outlined text-[15px]">warning</span>
-                      C++ auto-execution not supported for this problem. Switch to Python for automatic I/O.
-                    </div>
-                  )}
                   <div className="rounded-lg overflow-hidden subtle-border h-72">
                     <Editor
                       height="100%"
