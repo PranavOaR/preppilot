@@ -71,6 +71,9 @@ export default function ContestTakePage() {
   // DSA state
   const [code, setCode] = useState("");
   const [selectedLang, setSelectedLang] = useState<"python" | "c" | "cpp" | "java">("python");
+  const [running, setRunning] = useState(false);
+  const [runResults, setRunResults] = useState<{ passed: boolean; status: string; error?: string | null }[] | null>(null);
+  const [runSummary, setRunSummary] = useState<{ total: number; passed: number } | null>(null);
 
   // MCQ state
   const [selectedOption, setSelectedOption] = useState<string>("");
@@ -143,8 +146,39 @@ export default function ContestTakePage() {
       setCode(currentProblem.starterCode?.[selectedLang] || "");
     }
     setSelectedOption("");
+    setRunResults(null);
+    setRunSummary(null);
     startTimeRef.current = Date.now();
   }, [currentIndex, currentProblem, selectedLang]);
+
+  async function handleRunTests() {
+    if (!currentProblem || !currentProblem.testCases) return;
+    setRunning(true);
+    setRunResults(null);
+    setRunSummary(null);
+    try {
+      const res = await fetch("/api/submissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          language: selectedLang,
+          testCases: currentProblem.testCases,
+          mode: "run",
+        }),
+      });
+      const data = await res.json();
+      if (data.results) {
+        setRunResults(data.results);
+        setRunSummary({ total: data.summary.total, passed: data.summary.passed });
+      }
+    } catch {
+      setRunResults([{ passed: false, status: "Error", error: "Failed to connect to server" }]);
+      setRunSummary({ total: 1, passed: 0 });
+    } finally {
+      setRunning(false);
+    }
+  }
 
   function handleTimeUp() {
     setTimeUp(true);
@@ -357,7 +391,14 @@ export default function ContestTakePage() {
                       </button>
                     ))}
                   </div>
-                  <div className="rounded-lg overflow-hidden subtle-border h-80">
+                  {/* C++ unsupported warning */}
+                  {selectedLang === "cpp" && currentProblem.starterCode?.cpp && /ListNode|TreeNode|vector\s*<\s*vector/.test(currentProblem.starterCode.cpp) && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 text-xs">
+                      <span className="material-symbols-outlined text-[15px]">warning</span>
+                      C++ auto-execution not supported for this problem. Switch to Python for automatic I/O.
+                    </div>
+                  )}
+                  <div className="rounded-lg overflow-hidden subtle-border h-72">
                     <Editor
                       height="100%"
                       language={monacoLangMap[selectedLang]}
@@ -372,22 +413,61 @@ export default function ContestTakePage() {
                       }}
                     />
                   </div>
+                  {/* Run Results */}
+                  {runResults && runSummary && (
+                    <div className="rounded-lg bg-surface-container-lowest subtle-border p-3 space-y-2">
+                      <p className="text-xs font-medium text-on-surface-variant">
+                        Sample Tests: <span className={runSummary.passed === runSummary.total ? "text-green-400" : "text-red-400"}>{runSummary.passed}/{runSummary.total} passed</span>
+                      </p>
+                      {runResults.map((r, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          <span className={`material-symbols-outlined text-[14px] ${r.passed ? "text-green-400" : "text-red-400"}`}>
+                            {r.passed ? "check_circle" : "cancel"}
+                          </span>
+                          <span className="text-on-surface-variant">Test {i + 1}: {r.status}</span>
+                          {r.error && <span className="text-red-400 truncate max-w-xs">{r.error}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Submit Button */}
+              {/* Action Buttons */}
               {!submittedIds.has(currentProblem.id) && !timeUp && (
-                <button
-                  onClick={handleSubmitProblem}
-                  disabled={
-                    submitting ||
-                    (currentProblem.type === "aptitude" && !selectedOption) ||
-                    (currentProblem.type === "dsa" && !code.trim())
-                  }
-                  className="px-6 py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  {submitting ? "Submitting..." : "Submit Answer"}
-                </button>
+                <div className="flex items-center gap-3">
+                  {currentProblem.type === "dsa" && (
+                    <button
+                      onClick={handleRunTests}
+                      disabled={running || submitting || !code.trim()}
+                      className="px-4 py-2.5 rounded-lg text-sm font-medium bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50 subtle-border flex items-center gap-2"
+                    >
+                      {running ? (
+                        <>
+                          <span className="material-symbols-outlined text-[15px] animate-spin">progress_activity</span>
+                          Running...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[15px]">play_arrow</span>
+                          Run Tests
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSubmitProblem}
+                    disabled={
+                      submitting ||
+                      running ||
+                      (currentProblem.type === "aptitude" && !selectedOption) ||
+                      (currentProblem.type === "dsa" && !code.trim())
+                    }
+                    className="px-6 py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {submitting ? "Submitting..." : "Submit Answer"}
+                  </button>
+                </div>
               )}
 
               {/* Navigation */}

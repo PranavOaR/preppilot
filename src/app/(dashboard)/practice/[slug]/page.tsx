@@ -489,6 +489,14 @@ export default function ProblemPage() {
               </button>
             </div>
 
+            {/* C++ unsupported warning */}
+            {activeTab === "editor" && selectedLang === "cpp" && problem.starterCode?.cpp && /ListNode|TreeNode|vector\s*<\s*vector/.test(problem.starterCode.cpp) && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20 text-yellow-400 text-xs shrink-0">
+                <span className="material-symbols-outlined text-[15px]">warning</span>
+                <span>C++ auto-execution is not supported for this problem (uses linked list / tree / 2D array types). Switch to <button onClick={() => handleLanguageChange("python")} className="underline font-medium">Python</button> for automatic I/O.</span>
+              </div>
+            )}
+
             {/* Code Editor */}
             {activeTab === "editor" && (
               <div className="flex-1 overflow-hidden">
