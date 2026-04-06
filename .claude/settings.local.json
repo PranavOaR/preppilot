@@ -25,7 +25,18 @@
       "Bash(find /Users/pranavrao/Documents/PrepPilot -name firestore.rules -o -name *firestore* -type f)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(grep:*)",
+      "Bash(find /Users/pranavrao/Documents/PrepPilot/src /Users/pranavrao/Documents/PrepPilot/scripts -newer /Users/pranavrao/Documents/PrepPilot/src/lib/groq/client.ts -name *.ts -o -name *.tsx)",
+      "Bash(ngrok version:*)",
+      "Bash(firebase --version)",
+      "Bash(firebase projects:list)",
+      "Bash(firebase:*)",
+      "Bash(gcloud services:*)",
+      "Bash(gcloud secrets:*)",
+      "Bash(gcloud beta:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

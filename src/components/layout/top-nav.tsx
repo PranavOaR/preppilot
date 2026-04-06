@@ -8,10 +8,9 @@ const mainLinks = [
   { href: "/dashboard", icon: "home", label: "Home" },
   { href: "/roadmap", icon: "map", label: "Roadmap" },
   { href: "/practice", icon: "terminal", label: "Practice" },
-  { href: "/leaderboard", icon: "emoji_events", label: "Leaderboard" },
+  { href: "/leaderboard", icon: "emoji_events", label: "Contests" },
   { href: "/interview", icon: "record_voice_over", label: "Interview" },
   { href: "/mock-tests", icon: "quiz", label: "Mock Tests" },
-  { href: "/analytics", icon: "insights", label: "Analytics" },
 ];
 
 export function TopNav() {

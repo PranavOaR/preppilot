@@ -92,6 +92,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
   const audioCtxRef = useRef<AudioContext | null>(null);
   const resolvePlayRef = useRef<(() => void) | null>(null);
   const transcriptModeRef = useRef<"answer" | "question">("answer");
+  const userSkippedRef = useRef(false);
 
   useEffect(() => { qasRef.current = qas; }, [qas]);
 
@@ -397,6 +398,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         setCurrentQuestion(question);
 
         // Speak question
+        userSkippedRef.current = false;
         setPhase("speaking");
         setStatusText("Interviewer is speaking...");
         await speakText(question);
@@ -508,10 +510,18 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
 
             // Spoken comment from interviewer after the answer
             if (comment && !abortRef.current) {
+              userSkippedRef.current = false;
               setPhase("speaking");
               setStatusText("Interviewer is responding...");
               setCurrentQuestion(comment);
               await speakText(comment);
+              // If user pressed Skip during the comment, give them another attempt
+              if (userSkippedRef.current && !abortRef.current) {
+                userSkippedRef.current = false;
+                answered = false;
+                sttRetries = 0;
+                setCurrentQuestion(question);
+              }
             }
           }
         }
@@ -587,7 +597,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         {/* Skip button — visible during any TTS playback */}
         {(phase === "speaking" || phase === "greeting") && (
           <button
-            onClick={stopCurrentAudio}
+            onClick={() => { userSkippedRef.current = true; stopCurrentAudio(); }}
             className="ml-auto text-xs px-3 py-1 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-on-surface subtle-border transition-colors flex items-center gap-1.5 shrink-0"
           >
             <span className="material-symbols-outlined text-[14px]">skip_next</span>
