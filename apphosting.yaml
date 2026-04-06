@@ -1,0 +1,35 @@
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+
+env:
+  # Firebase (public — safe to commit)
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyAJpHav3xhdRHoVMvNu2tiV5wR7al1Xptg
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: prepp-e0147.firebaseapp.com
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: prepp-e0147
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: prepp-e0147.firebasestorage.app
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "884696227865"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:884696227865:web:8d53dd13b71ec2c1ae0a88
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: G-CWVWN68HQ2
+
+  # Server-side secrets (stored in Secret Manager)
+  - variable: JUDGE0_API_KEY
+    secret: JUDGE0_API_KEY
+  - variable: JUDGE0_API_HOST
+    secret: JUDGE0_API_HOST
+  - variable: GROQ_API_KEY
+    secret: GROQ_API_KEY
+  - variable: SARVAM_API_KEY
+    secret: SARVAM_API_KEY
+  - variable: SARVAM_API_URL
+    secret: SARVAM_API_URL

@@ -427,7 +427,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
             continue;
           }
 
-          if (transcriptModeRef.current === "question") {
+          if ((transcriptModeRef.current as "answer" | "question") === "question") {
             // User asked a clarifying question
             setPhase("clarifying");
             setStatusText("Interviewer is responding...");
