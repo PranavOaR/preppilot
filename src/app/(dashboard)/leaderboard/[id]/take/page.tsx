@@ -343,29 +343,32 @@ export default function ContestTakePage() {
               {/* Aptitude MCQ */}
               {currentProblem.type === "aptitude" && (
                 <div className="space-y-3">
-                  {(currentProblem.options || []).map((opt, i) => (
-                    <label
-                      key={i}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors ${
-                        selectedOption === opt
-                          ? "bg-primary-container/15 text-primary-brand subtle-border"
-                          : "bg-surface-container text-on-surface hover:bg-surface-container-high"
-                      } ${submittedIds.has(currentProblem.id) ? "pointer-events-none opacity-70" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name="mcq"
-                        value={opt}
-                        checked={selectedOption === opt}
-                        onChange={() => setSelectedOption(opt)}
-                        disabled={submittedIds.has(currentProblem.id)}
-                        className="accent-primary-brand"
-                      />
-                      <span className="text-sm">
-                        {String.fromCharCode(65 + i)}. {opt}
-                      </span>
-                    </label>
-                  ))}
+                  {(currentProblem.options || []).map((opt, i) => {
+                    const label = String.fromCharCode(65 + i); // "A", "B", "C", "D"
+                    return (
+                      <label
+                        key={i}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors ${
+                          selectedOption === label
+                            ? "bg-primary-container/15 text-primary-brand subtle-border"
+                            : "bg-surface-container text-on-surface hover:bg-surface-container-high"
+                        } ${submittedIds.has(currentProblem.id) ? "pointer-events-none opacity-70" : ""}`}
+                      >
+                        <input
+                          type="radio"
+                          name="mcq"
+                          value={label}
+                          checked={selectedOption === label}
+                          onChange={() => setSelectedOption(label)}
+                          disabled={submittedIds.has(currentProblem.id)}
+                          className="accent-primary-brand"
+                        />
+                        <span className="text-sm">
+                          {label}. {opt}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               )}
 

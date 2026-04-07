@@ -29,7 +29,7 @@ function float32ToWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
   writeStr(8, "WAVE");
   writeStr(12, "fmt ");
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
+  view.setUint16(20, 1, true);
   view.setUint16(22, numChannels, true);
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, byteRate, true);
@@ -59,7 +59,9 @@ type Phase =
   | "greeting"
   | "generating"
   | "speaking"
-  | "listening"
+  | "waiting_to_record"     // user must click mic to begin
+  | "listening"              // actively recording
+  | "confirming_transcript"  // user reviews their answer before evaluation
   | "clarifying"
   | "processing"
   | "wrapping_up";
@@ -81,6 +83,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
   const [questionIndex, setQuestionIndex] = useState(0);
   const [statusText, setStatusText] = useState("Starting interview...");
   const [liveTranscript, setLiveTranscript] = useState("");
+  const [pendingTranscript, setPendingTranscript] = useState("");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [micError, setMicError] = useState("");
 
@@ -91,8 +94,10 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const resolvePlayRef = useRef<(() => void) | null>(null);
-  const transcriptModeRef = useRef<"answer" | "question">("answer");
+  const transcriptModeRef = useRef<string>("answer");
   const userSkippedRef = useRef(false);
+  const startRecordingTriggerRef = useRef<(() => void) | null>(null);
+  const confirmResultRef = useRef<{ confirm: () => void; retry: () => void } | null>(null);
 
   useEffect(() => { qasRef.current = qas; }, [qas]);
 
@@ -115,7 +120,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     }
   }
 
-  // ── Play WAV ArrayBuffer via Web Audio API — stores refs for external stop ─
+  // ── Play WAV ArrayBuffer via Web Audio API ────────────────────────────────
   async function playAudioBuffer(buffer: ArrayBuffer, text: string): Promise<void> {
     return new Promise((resolve) => {
       try {
@@ -142,7 +147,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
               }
             };
 
-            resolvePlayRef.current = done; // allow external stop
+            resolvePlayRef.current = done;
             src.onended = done;
             const words = text.split(" ").length;
             setTimeout(done, Math.max(4000, (words / 2.5) * 1000) + 3000);
@@ -167,7 +172,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
       audioCtxRef.current?.close().catch(() => {});
     }
     audioCtxRef.current = null;
-    resolvePlayRef.current?.(); // resolve the pending playAudioBuffer promise
+    resolvePlayRef.current?.();
     resolvePlayRef.current = null;
   }
 
@@ -196,103 +201,151 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     }
   }
 
-  // ── Record audio → Sarvam STT → transcript ───────────────────────────────
+  // ── Record audio → Sarvam STT → transcript (with manual start + confirm) ──
   async function recordAndTranscribe(): Promise<string> {
     setMicError("");
     setLiveTranscript("");
+    setPendingTranscript("");
 
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setMicError(
-        "Microphone access denied. Please allow access and reload."
-      );
-      return "[Microphone access denied]";
-    }
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (abortRef.current) return "[Aborted]";
 
-    return new Promise((resolve) => {
-      const chunks: BlobPart[] = [];
-      const recorder = new MediaRecorder(stream);
-      let stopped = false;
-      let secs = 0;
+      // Step 1: Wait for user to click the mic button
+      setPhase("waiting_to_record");
+      setStatusText("Click the microphone when you're ready to answer");
+      await new Promise<void>((res) => { startRecordingTriggerRef.current = res; });
+      startRecordingTriggerRef.current = null;
+      if (abortRef.current) return "[Aborted]";
 
-      const tick = setInterval(() => {
-        secs++;
-        setRecordingSeconds(secs);
-        if (secs >= 180) stopRec();
-      }, 1000);
-      timerRef.current = tick;
-
-      function stopRec() {
-        if (stopped) return;
-        stopped = true;
-        clearInterval(tick);
-        timerRef.current = null;
-        setRecordingSeconds(0);
-        try { recorder.stop(); } catch {}
-        stream.getTracks().forEach((t) => t.stop());
+      // Step 2: Acquire microphone
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        setMicError("Microphone access denied. Please allow access and reload.");
+        return "[Microphone access denied]";
       }
 
-      stopRecordingRef.current = stopRec;
+      // Step 3: Record and transcribe
+      const { transcript, mode } = await new Promise<{ transcript: string; mode: string }>((resolve) => {
+        const chunks: BlobPart[] = [];
+        const recorder = new MediaRecorder(stream);
+        let stopped = false;
+        let secs = 0;
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
+        setPhase("listening");
+        setStatusText("Recording — speak clearly, then click Done");
 
-      recorder.onstop = async () => {
-        stopRecordingRef.current = null;
-        setPhase("processing");
-        setStatusText("Processing your answer...");
+        const tick = setInterval(() => {
+          secs++;
+          setRecordingSeconds(secs);
+          if (secs >= 180) stopRec();
+        }, 1000);
+        timerRef.current = tick;
 
-        const mimeType = recorder.mimeType || "audio/webm";
-        const blob = new Blob(chunks, { type: mimeType });
-        console.log(`[STT] Recorded blob: ${blob.size} bytes, type: ${mimeType}`);
-
-        if (blob.size < 500) {
-          console.warn("[STT] Recording too small — likely no audio captured");
-          resolve("[No audio recorded — please try again]");
-          return;
+        function stopRec() {
+          if (stopped) return;
+          stopped = true;
+          clearInterval(tick);
+          timerRef.current = null;
+          setRecordingSeconds(0);
+          try { recorder.stop(); } catch {}
+          stream.getTracks().forEach((t) => t.stop());
         }
+        stopRecordingRef.current = stopRec;
 
-        try {
-          const rawBuffer = await blob.arrayBuffer();
-          const decodeCtx = new AudioContext();
-          const decoded = await decodeCtx.decodeAudioData(rawBuffer);
-          await decodeCtx.close();
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-          const wavBuffer = float32ToWav(decoded.getChannelData(0), decoded.sampleRate);
-          const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });
-          console.log(`[STT] WAV: ${wavBlob.size} bytes, ${decoded.sampleRate}Hz, ${decoded.duration.toFixed(1)}s`);
+        recorder.onstop = async () => {
+          stopRecordingRef.current = null;
+          const capturedMode = transcriptModeRef.current;
+          setPhase("processing");
+          setStatusText("Transcribing your answer...");
 
-          const form = new FormData();
-          form.append("audio", wavBlob, "recording.wav");
-          form.append("language", "en-IN");
+          const mimeType = recorder.mimeType || "audio/webm";
+          const blob = new Blob(chunks, { type: mimeType });
+          console.log(`[STT] Recorded: ${blob.size} bytes, type: ${mimeType}`);
 
-          const res = await fetchWithTimeout(
-            "/api/interview/stt",
-            { method: "POST", body: form },
-            30000
-          );
-          if (!res.ok) {
-            const errText = await res.text().catch(() => "");
-            console.error("[STT] API error:", res.status, errText);
-            resolve("[Transcription failed — please try again]");
+          if (blob.size < 500) {
+            resolve({ transcript: "[No audio recorded]", mode: capturedMode });
             return;
           }
-          const data = await res.json();
-          console.log("[STT] Response:", data);
-          const text = (data.transcript || "").trim();
-          setLiveTranscript(text);
-          resolve(text || "[No speech detected]");
-        } catch (err) {
-          console.error("[STT] Failed:", err);
-          resolve("[Transcription failed — please try again]");
-        }
-      };
 
-      recorder.start();
-    });
+          try {
+            const rawBuffer = await blob.arrayBuffer();
+            const decodeCtx = new AudioContext();
+            const decoded = await decodeCtx.decodeAudioData(rawBuffer);
+            await decodeCtx.close();
+
+            const wavBuffer = float32ToWav(decoded.getChannelData(0), decoded.sampleRate);
+            const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });
+            console.log(`[STT] WAV: ${wavBlob.size} bytes, ${decoded.sampleRate}Hz, ${decoded.duration.toFixed(1)}s`);
+
+            const form = new FormData();
+            form.append("audio", wavBlob, "recording.wav");
+            form.append("language", "en-IN");
+
+            const res = await fetchWithTimeout("/api/interview/stt", { method: "POST", body: form }, 30000);
+            if (!res.ok) {
+              const errText = await res.text().catch(() => "");
+              console.error("[STT] API error:", res.status, errText);
+              resolve({ transcript: "[Transcription failed]", mode: capturedMode });
+              return;
+            }
+            const data = await res.json();
+            console.log("[STT] Response:", data);
+            const text = (data.transcript || "").trim();
+            resolve({ transcript: text || "[No speech detected]", mode: capturedMode });
+          } catch (err) {
+            console.error("[STT] Failed:", err);
+            resolve({ transcript: "[Transcription failed]", mode: capturedMode });
+          }
+        };
+
+        recorder.start();
+      });
+
+      // Step 4: For clarifying questions, skip confirmation and return immediately
+      if (mode === "question") {
+        setLiveTranscript(transcript);
+        return transcript;
+      }
+
+      // Step 5: Validate transcript
+      const isInvalid =
+        !transcript ||
+        transcript.startsWith("[") ||
+        transcript.trim().length < 3;
+
+      if (isInvalid) {
+        setStatusText("Couldn't hear you clearly. Please try again.");
+        await new Promise((r) => setTimeout(r, 1500));
+        continue; // loop back to waiting_to_record
+      }
+
+      // Step 6: Show transcript to user for review before evaluation
+      setPendingTranscript(transcript);
+      setLiveTranscript(transcript);
+      setPhase("confirming_transcript");
+      setStatusText("Review your answer — confirm or record again");
+
+      const action = await new Promise<"confirm" | "retry">((resolve) => {
+        confirmResultRef.current = {
+          confirm: () => resolve("confirm"),
+          retry: () => resolve("retry"),
+        };
+      });
+      confirmResultRef.current = null;
+
+      if (action === "retry") {
+        setPendingTranscript("");
+        setLiveTranscript("");
+        continue; // loop back to waiting_to_record
+      }
+
+      return transcript;
+    }
   }
 
   // ── Generate feedback and navigate to results ────────────────────────────
@@ -371,6 +424,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         setStatusText("Interviewer is thinking...");
         setCurrentQuestion("");
         setLiveTranscript("");
+        setPendingTranscript("");
         setQuestionIndex(i);
 
         let question = FALLBACK_QUESTIONS[i % FALLBACK_QUESTIONS.length];
@@ -397,39 +451,21 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         if (abortRef.current) break;
         setCurrentQuestion(question);
 
-        // Speak question
+        // Speak question (after audio ends, user can click mic to start recording)
         userSkippedRef.current = false;
         setPhase("speaking");
         setStatusText("Interviewer is speaking...");
         await speakText(question);
         if (abortRef.current) break;
 
-        // Clarification loop — user may ask questions before answering
+        // Answer loop — user records, may ask for clarification before answering
         let answered = false;
-        let sttRetries = 0;
         while (!answered && !abortRef.current) {
           transcriptModeRef.current = "answer";
-          setPhase("listening");
-          setStatusText(
-            sttRetries > 0
-              ? "Didn't catch that — please speak again."
-              : "Your turn — answer or ask me to clarify."
-          );
-          const startTime = Date.now();
           const userSpeech = await recordAndTranscribe();
-          const timeTaken = Math.floor((Date.now() - startTime) / 1000);
           if (abortRef.current) break;
 
-          // STT produced an error string — retry up to 2 times
-          const isSttError = !userSpeech || userSpeech.startsWith("[");
-          if (isSttError && sttRetries < 2) {
-            sttRetries++;
-            console.warn(`[STT] Retry ${sttRetries}/2:`, userSpeech);
-            await new Promise((r) => setTimeout(r, 600));
-            continue;
-          }
-
-          if ((transcriptModeRef.current as "answer" | "question") === "question") {
+          if (transcriptModeRef.current === "question") {
             // User asked a clarifying question
             setPhase("clarifying");
             setStatusText("Interviewer is responding...");
@@ -452,7 +488,6 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
               setCurrentQuestion(clarification);
               await speakText(clarification);
               if (!abortRef.current) {
-                // Re-state the question briefly
                 setCurrentQuestion(question);
                 await speakText(`So, going back to my question: ${question}`);
               }
@@ -461,11 +496,12 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
             }
             // loop again for actual answer
           } else {
-            // It's an answer — evaluate it
+            // Valid, confirmed answer — evaluate it
             answered = true;
             setPhase("processing");
             setStatusText("Evaluating your answer...");
 
+            const startTime = Date.now();
             let score = 5;
             let evaluation = "";
             let comment = "";
@@ -489,6 +525,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
               comment = data.comment ?? "";
             } catch {}
 
+            const timeTaken = Math.floor((Date.now() - startTime) / 1000);
             const qa: InterviewQA = {
               index: allQAs.length,
               questionText: question,
@@ -515,11 +552,9 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
               setStatusText("Interviewer is responding...");
               setCurrentQuestion(comment);
               await speakText(comment);
-              // If user pressed Skip during the comment, give them another attempt
               if (userSkippedRef.current && !abortRef.current) {
                 userSkippedRef.current = false;
                 answered = false;
-                sttRetries = 0;
                 setCurrentQuestion(question);
               }
             }
@@ -538,13 +573,17 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
       abortRef.current = true;
       stopCurrentAudio();
       stopRecordingRef.current?.();
+      startRecordingTriggerRef.current?.();
+      confirmResultRef.current?.confirm();
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Derived state for UI ─────────────────────────────────────────────────
-  const isListening = phase === "listening";
+  const isWaitingToRecord = phase === "waiting_to_record";
+  const isRecording = phase === "listening";
+  const isConfirming = phase === "confirming_transcript";
   const isSpeaking = phase === "speaking" || phase === "greeting";
   const isBusy =
     phase === "generating" ||
@@ -570,8 +609,12 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
       {/* Status pill */}
       <div
         className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-          isListening
+          isRecording
             ? "bg-green-400/10 border border-green-400/25"
+            : isWaitingToRecord
+            ? "bg-blue-400/10 border border-blue-400/25"
+            : isConfirming
+            ? "bg-primary-container/10 border border-primary-brand/25"
             : isSpeaking
             ? "bg-primary-container/10 border border-primary-brand/25"
             : "bg-surface-container subtle-border"
@@ -582,9 +625,19 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
             progress_activity
           </span>
         )}
-        {isListening && (
+        {isRecording && (
           <span className="material-symbols-outlined text-[18px] text-green-400 animate-pulse">
             mic
+          </span>
+        )}
+        {isWaitingToRecord && (
+          <span className="material-symbols-outlined text-[18px] text-blue-400">
+            mic_none
+          </span>
+        )}
+        {isConfirming && (
+          <span className="material-symbols-outlined text-[18px] text-primary-brand">
+            rate_review
           </span>
         )}
         {isSpeaking && (
@@ -594,7 +647,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         )}
         <span className="text-sm text-on-surface-variant">{statusText}</span>
 
-        {/* Skip button — visible during any TTS playback */}
+        {/* Skip button — visible during TTS playback */}
         {(phase === "speaking" || phase === "greeting") && (
           <button
             onClick={() => { userSkippedRef.current = true; stopCurrentAudio(); }}
@@ -617,27 +670,23 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
       <div className="rounded-xl bg-surface-container-low subtle-border p-4 min-h-[320px] max-h-[460px] overflow-y-auto space-y-4">
         <InterviewTranscript
           qas={qas}
-          currentQuestion={isListening || isSpeaking ? currentQuestion : undefined}
+          currentQuestion={(isRecording || isSpeaking || isWaitingToRecord) ? currentQuestion : undefined}
         />
 
-        {/* User transcript (appears after recording stops and STT runs) */}
-        {isListening && liveTranscript && (
+        {/* User's pending transcript preview (recording phase) */}
+        {isRecording && liveTranscript && (
           <div className="flex gap-3 justify-end">
             <div className="flex-1 max-w-[85%] ml-auto bg-primary-container/10 rounded-xl rounded-tr-sm p-3 border border-primary-brand/15">
-              <p className="text-sm text-on-surface leading-relaxed">
-                {liveTranscript}
-              </p>
+              <p className="text-sm text-on-surface leading-relaxed">{liveTranscript}</p>
             </div>
             <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
-                person
-              </span>
+              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">person</span>
             </div>
           </div>
         )}
 
-        {/* Waiting for user to speak */}
-        {isListening && !liveTranscript && (
+        {/* Waiting dots during recording */}
+        {isRecording && !liveTranscript && (
           <div className="flex gap-3 justify-end">
             <div className="bg-surface-container rounded-xl rounded-tr-sm px-4 py-3 border border-outline-variant/10">
               <div className="flex items-center gap-1">
@@ -650,21 +699,36 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         )}
       </div>
 
-      {/* Mic indicator + answer/clarify buttons */}
-      {isListening && (
+      {/* ── WAITING TO RECORD: big mic button ── */}
+      {isWaitingToRecord && (
+        <div className="flex flex-col items-center gap-4 py-3">
+          <p className="text-xs text-on-surface-variant text-center">
+            Listen to the question, then click the microphone to start recording your answer.
+          </p>
+          <button
+            onClick={() => startRecordingTriggerRef.current?.()}
+            className="group relative w-20 h-20 rounded-full bg-blue-400/10 border-2 border-blue-400 flex items-center justify-center hover:bg-blue-400/20 transition-all active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[36px] text-blue-400">mic</span>
+            <div className="absolute inset-0 rounded-full border-2 border-blue-400 opacity-0 group-hover:opacity-30 group-hover:scale-110 transition-all" />
+          </button>
+          <p className="text-xs font-medium text-blue-400">Click to Answer</p>
+        </div>
+      )}
+
+      {/* ── RECORDING: controls ── */}
+      {isRecording && (
         <div className="flex flex-col items-center gap-3 py-2">
           <div className="relative">
             <div className="w-16 h-16 rounded-full bg-green-400/10 border-2 border-green-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[30px] text-green-400">
-                mic
-              </span>
+              <span className="material-symbols-outlined text-[30px] text-green-400">mic</span>
             </div>
             <div className="absolute inset-0 rounded-full border-2 border-green-400 animate-ping opacity-25" />
           </div>
           <p className="text-xs text-on-surface-variant text-center">
             Recording
-            {recordingSeconds > 0 ? ` • ${recordingSeconds}s` : " • speak now"}
-            {recordingSeconds >= 150 && " • auto-stopping soon"}
+            {recordingSeconds > 0 ? ` · ${recordingSeconds}s` : " · speak now"}
+            {recordingSeconds >= 150 && " · auto-stopping soon"}
           </p>
           <div className="flex gap-3 flex-wrap justify-center">
             <button
@@ -672,9 +736,10 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
                 transcriptModeRef.current = "answer";
                 stopRecordingRef.current?.();
               }}
-              className="text-xs px-5 py-2 rounded-lg bg-primary-container/15 text-primary-brand border border-primary-brand/20 hover:bg-primary-container/25 transition-colors"
+              className="text-xs px-5 py-2 rounded-lg bg-green-400/15 text-green-400 border border-green-400/30 hover:bg-green-400/25 transition-colors flex items-center gap-1.5"
             >
-              Done answering →
+              <span className="material-symbols-outlined text-[14px]">stop_circle</span>
+              Done answering
             </button>
             <button
               onClick={() => {
@@ -690,14 +755,46 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         </div>
       )}
 
+      {/* ── CONFIRMING TRANSCRIPT: review before evaluation ── */}
+      {isConfirming && (
+        <div className="rounded-xl bg-surface-container subtle-border p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px] text-primary-brand">rate_review</span>
+            <h4 className="text-on-surface text-sm font-medium">Your Answer</h4>
+            <span className="text-outline text-xs ml-auto">Review before submitting</span>
+          </div>
+          <div className="rounded-lg bg-surface-container-low p-3 border border-outline-variant/15">
+            <p className="text-on-surface text-sm leading-relaxed">{pendingTranscript}</p>
+          </div>
+          <div className="flex items-center gap-3 justify-end">
+            <button
+              onClick={() => confirmResultRef.current?.retry()}
+              className="text-xs px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-on-surface subtle-border transition-colors flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[14px]">replay</span>
+              Record again
+            </button>
+            <button
+              onClick={() => confirmResultRef.current?.confirm()}
+              className="text-xs px-5 py-2 rounded-lg bg-primary-container/20 text-primary-brand border border-primary-brand/25 hover:bg-primary-container/30 transition-colors flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[14px]">check</span>
+              Submit answer
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* End interview early */}
-      {qas.length > 0 && !isBusy && (
+      {qas.length > 0 && !isBusy && !isWaitingToRecord && !isRecording && !isConfirming && (
         <div className="text-center pt-2">
           <button
             onClick={() => {
               abortRef.current = true;
               stopCurrentAudio();
               stopRecordingRef.current?.();
+              startRecordingTriggerRef.current?.();
+              confirmResultRef.current?.confirm();
               if (timerRef.current) clearInterval(timerRef.current);
               setTimeout(() => generateFeedback(qasRef.current), 200);
             }}

@@ -11,6 +11,99 @@ import { HintPanel } from "@/components/practice/hint-panel";
 
 const optionLabels = ["A", "B", "C", "D"];
 
+// ── Topic formulas reference ──────────────────────────────────────────────────
+const TOPIC_FORMULAS: Record<string, { label: string; formula: string }[]> = {
+  percentages: [
+    { label: "x% of N", formula: "(x / 100) × N" },
+    { label: "Percentage change", formula: "(Change / Original) × 100" },
+    { label: "After x% increase", formula: "Original × (1 + x/100)" },
+    { label: "After x% decrease", formula: "Original × (1 − x/100)" },
+  ],
+  "profit-and-loss": [
+    { label: "Profit", formula: "SP − CP" },
+    { label: "Loss", formula: "CP − SP" },
+    { label: "Profit %", formula: "(Profit / CP) × 100" },
+    { label: "SP (given Profit%)", formula: "CP × (100 + P%) / 100" },
+    { label: "CP (given SP & Profit%)", formula: "SP × 100 / (100 + P%)" },
+  ],
+  average: [
+    { label: "Average", formula: "Sum of values / Count" },
+    { label: "New average (add x)", formula: "(Old Sum + x) / (n + 1)" },
+    { label: "Weighted average", formula: "Σ(wᵢ × xᵢ) / Σwᵢ" },
+  ],
+  "ratio-and-proportion": [
+    { label: "Proportion", formula: "a/b = c/d  ⟹  ad = bc" },
+    { label: "Mean proportional of a, b", formula: "√(a × b)" },
+    { label: "Third proportional to a, b", formula: "b² / a" },
+  ],
+  "time-and-work": [
+    { label: "Work done in 1 day (takes n days)", formula: "1/n" },
+    { label: "Combined rate A + B", formula: "1/a + 1/b" },
+    { label: "Time for A + B together", formula: "ab / (a + b)" },
+    { label: "Efficiency ratio", formula: "Inversely proportional to time" },
+  ],
+  "time-speed-distance": [
+    { label: "Speed", formula: "Distance / Time" },
+    { label: "Average speed (equal distances)", formula: "2S₁S₂ / (S₁ + S₂)" },
+    { label: "Relative speed (same direction)", formula: "S₁ − S₂" },
+    { label: "Relative speed (opposite)", formula: "S₁ + S₂" },
+    { label: "km/h to m/s", formula: "× 5/18" },
+  ],
+  "mixture-and-alligation": [
+    { label: "Alligation rule", formula: "(Cheaper price − Mean) : (Mean − Dearer price)" },
+    { label: "Amount remaining after n replacements", formula: "Q × (1 − x/V)ⁿ" },
+  ],
+  "pipes-and-cisterns": [
+    { label: "Pipe A fills in a hours", formula: "Rate = 1/a" },
+    { label: "A fills, B empties", formula: "Net rate = 1/a − 1/b" },
+    { label: "Time to fill/empty", formula: "1 / (net rate)" },
+  ],
+  numbers: [
+    { label: "Sum of 1 to n", formula: "n(n + 1) / 2" },
+    { label: "Sum of first n odd numbers", formula: "n²" },
+    { label: "Sum of first n even numbers", formula: "n(n + 1)" },
+    { label: "Divisible by 3 / 9", formula: "Sum of digits divisible by 3 / 9" },
+    { label: "Divisible by 11", formula: "(Sum of odd-position digits) − (Sum of even-position digits) = 0 or 11" },
+  ],
+  algebra: [
+    { label: "(a + b)²", formula: "a² + 2ab + b²" },
+    { label: "(a − b)²", formula: "a² − 2ab + b²" },
+    { label: "a² − b²", formula: "(a + b)(a − b)" },
+    { label: "Quadratic roots", formula: "x = (−b ± √(b² − 4ac)) / 2a" },
+  ],
+  probability: [
+    { label: "Probability of event E", formula: "P(E) = Favourable outcomes / Total outcomes" },
+    { label: "P(A or B)", formula: "P(A) + P(B) − P(A ∩ B)" },
+    { label: "P(A and B) — independent", formula: "P(A) × P(B)" },
+    { label: "Complement", formula: "P(A′) = 1 − P(A)" },
+  ],
+  "permutation-and-combination": [
+    { label: "Permutation nPr", formula: "n! / (n − r)!" },
+    { label: "Combination nCr", formula: "n! / [r! × (n − r)!]" },
+    { label: "Circular arrangements", formula: "(n − 1)!" },
+    { label: "With repetition (r from n)", formula: "nʳ" },
+  ],
+  geometry: [
+    { label: "Circle area / circumference", formula: "πr²  /  2πr" },
+    { label: "Triangle area", formula: "½ × base × height" },
+    { label: "Pythagoras theorem", formula: "a² + b² = c²" },
+    { label: "Rectangle area / perimeter", formula: "l × b  /  2(l + b)" },
+    { label: "Heron's formula", formula: "√[s(s−a)(s−b)(s−c)], s = (a+b+c)/2" },
+  ],
+  "trigonometry-height-distance": [
+    { label: "sin θ", formula: "Opposite / Hypotenuse" },
+    { label: "cos θ", formula: "Adjacent / Hypotenuse" },
+    { label: "tan θ", formula: "Opposite / Adjacent = sin θ / cos θ" },
+    { label: "Height (angle of elevation α)", formula: "h = d × tan(α)" },
+    { label: "Key angles: sin 30°, 45°, 60°", formula: "½,  1/√2,  √3/2" },
+  ],
+  "age-problems": [
+    { label: "Age n years ago", formula: "Present age − n" },
+    { label: "Age n years later", formula: "Present age + n" },
+    { label: "Strategy", formula: "Assign variables, form 2 equations from ratio + difference" },
+  ],
+};
+
 interface AptitudeProblemProps {
   problem: Problem;
 }
@@ -26,9 +119,11 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
   const options = problem.options || [];
   const correctAnswer = problem.correctAnswer || "";
   const explanation = problem.examples?.[0]?.explanation || "";
+  const [formulasOpen, setFormulasOpen] = useState(false);
 
   // Extract just the question text (before the **Options:** line)
   const questionText = problem.description.split("\n\n**Options:**")[0];
+  const topicFormulas = TOPIC_FORMULAS[problem.topic] || [];
 
   function handleSelect(label: string) {
     if (result) return; // Already answered
@@ -96,6 +191,35 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
           {questionText}
         </p>
       </div>
+
+      {/* Key Formulas */}
+      {topicFormulas.length > 0 && (
+        <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+          <button
+            onClick={() => setFormulasOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-container transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-primary-brand">functions</span>
+              <span className="text-on-surface text-sm font-medium">Key Formulas &amp; Definitions</span>
+              <span className="text-outline text-xs capitalize">· {problem.topic.replace(/-/g, " ")}</span>
+            </div>
+            <span className={`material-symbols-outlined text-[18px] text-outline transition-transform ${formulasOpen ? "rotate-180" : ""}`}>
+              expand_more
+            </span>
+          </button>
+          {formulasOpen && (
+            <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {topicFormulas.map((f, i) => (
+                <div key={i} className="flex flex-col gap-0.5 rounded-lg bg-surface-container px-3 py-2">
+                  <span className="text-outline text-[10px] uppercase tracking-wide">{f.label}</span>
+                  <span className="text-on-surface text-sm font-mono">{f.formula}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AI Hints */}
       {!result && <HintPanel problemId={problem.id} />}

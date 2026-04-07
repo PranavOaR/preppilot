@@ -90,11 +90,14 @@ export function LoginForm() {
         {/* Email */}
         <div className="space-y-2">
           <Input
+            id="email"
+            name="email"
             type="email"
             placeholder="Email Address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            autoComplete="email"
             className="h-11 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40"
           />
         </div>
@@ -103,11 +106,14 @@ export function LoginForm() {
         <div className="space-y-2">
           <div className="relative">
             <Input
+              id="password"
+              name="password"
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
               className="h-11 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40 pr-16"
             />
             <a

@@ -124,11 +124,38 @@ export function ProblemsTable({ filters }: ProblemsTableProps) {
 
   if (loading && problems.length === 0) {
     return (
-      <div className="rounded-lg bg-surface-container-low subtle-border p-12 text-center">
-        <span className="material-symbols-outlined text-outline text-4xl animate-spin">
-          progress_activity
-        </span>
-        <p className="text-on-surface-variant text-sm mt-3">Loading problems...</p>
+      <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-outline-variant/10">
+          <div className="h-3 w-32 rounded bg-surface-container animate-pulse" />
+        </div>
+        <table className="w-full">
+          <tbody>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <tr key={i} className="border-b border-outline-variant/5 animate-pulse">
+                <td className="px-3 py-4 w-10">
+                  <div className="w-5 h-5 rounded-full bg-surface-container mx-auto" />
+                </td>
+                <td className="px-5 py-4">
+                  <div className="h-3.5 rounded bg-surface-container w-48 mb-1.5" />
+                  <div className="h-2.5 rounded bg-surface-container w-24" />
+                </td>
+                <td className="px-5 py-4 hidden md:table-cell">
+                  <div className="h-5 rounded bg-surface-container w-20" />
+                </td>
+                <td className="px-5 py-4 hidden md:table-cell">
+                  <div className="h-3 rounded bg-surface-container w-12" />
+                </td>
+                <td className="px-5 py-4 hidden sm:table-cell">
+                  <div className="h-3 rounded bg-surface-container w-10" />
+                </td>
+                <td className="px-5 py-4">
+                  <div className="h-3.5 rounded bg-surface-container w-14" />
+                </td>
+                <td className="px-3 py-4 w-10" />
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   }

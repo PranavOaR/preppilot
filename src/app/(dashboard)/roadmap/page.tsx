@@ -6,74 +6,34 @@ import { TopicCard } from "@/components/roadmap/topic-card";
 import { MasterySidebar } from "@/components/roadmap/mastery-sidebar";
 import { getUserProgress } from "@/lib/db/progress";
 import { getProblems } from "@/lib/db/problems";
-import { generateRoadmap, type RoadmapData, type RoadmapSection } from "@/lib/roadmap/engine";
+import { generateRoadmap, type RoadmapData, type RoadmapTopic } from "@/lib/roadmap/engine";
 
-function CollapsibleSection({ section }: { section: RoadmapSection }) {
-  const [open, setOpen] = useState(true);
-  const completedCount = section.topics.filter((t) => t.status === "completed").length;
-  const pct = section.topics.length > 0 ? Math.round((completedCount / section.topics.length) * 100) : 0;
+type Tab = "all" | "dsa" | "aptitude";
 
+// ── Skeleton card ─────────────────────────────────────────────────────────────
+function SkeletonCard() {
   return (
-    <div className="rounded-xl bg-surface-container subtle-border overflow-hidden">
-      {/* Header — click to toggle */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-container-high transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <span
-            className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${open ? "rotate-90" : ""} text-on-surface-variant`}
-          >
-            chevron_right
-          </span>
-          <div className="text-left">
-            <p className="text-on-surface text-sm font-medium">{section.title}</p>
-            <p className="text-on-surface-variant text-xs mt-0.5">{section.description}</p>
+    <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low overflow-hidden animate-pulse">
+      <div className="px-4 pt-4 pb-3 bg-surface-container">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-surface-container-high" />
+          <div className="flex-1 space-y-2 mt-1">
+            <div className="h-3 bg-surface-container-high rounded w-3/4" />
+            <div className="h-2.5 bg-surface-container-high rounded w-full" />
+            <div className="h-2.5 bg-surface-container-high rounded w-2/3" />
           </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0 ml-4">
-          {/* Progress bar */}
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="w-24 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary-brand rounded-full transition-all duration-500"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <span className="text-xs text-primary-brand font-mono font-semibold w-8 text-right">{pct}%</span>
-          </div>
-          <span className="text-xs text-outline">{completedCount}/{section.topics.length}</span>
+      </div>
+      <div className="px-4 py-3 space-y-2">
+        <div className="flex justify-between">
+          <div className="h-2.5 bg-surface-container-high rounded w-1/3" />
+          <div className="h-2.5 bg-surface-container-high rounded w-1/4" />
         </div>
-      </button>
-
-      {/* Topics list */}
-      {open && (
-        <div className="px-5 pb-5 space-y-3 border-t border-outline-variant/10">
-          <div className="relative space-y-3 pl-6 pt-4">
-            <div className="absolute left-[7px] top-4 bottom-2 w-px bg-primary-brand/20" />
-            {section.topics.map((topic) => (
-              <div key={topic.slug} className="relative">
-                <div
-                  className={`absolute -left-6 top-6 w-[15px] h-[15px] rounded-full border-2 flex items-center justify-center ${
-                    topic.status === "completed"
-                      ? "bg-green-400 border-green-400"
-                      : topic.status === "in-progress"
-                      ? "bg-surface border-primary-brand"
-                      : topic.status === "recommended"
-                      ? "bg-surface border-yellow-400"
-                      : "bg-surface-container border-outline-variant"
-                  }`}
-                >
-                  {topic.status === "completed" && (
-                    <span className="material-symbols-outlined text-on-primary text-[10px]">check</span>
-                  )}
-                </div>
-                <TopicCard topic={topic} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        <div className="h-1.5 bg-surface-container-high rounded-full" />
+      </div>
+      <div className="px-4 pb-4">
+        <div className="h-8 bg-surface-container-high rounded-lg" />
+      </div>
     </div>
   );
 }
@@ -82,6 +42,7 @@ export default function RoadmapPage() {
   const { user, profile } = useAuth();
   const [roadmap, setRoadmap] = useState<RoadmapData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("all");
 
   useEffect(() => {
     if (!user) return;
@@ -123,54 +84,120 @@ export default function RoadmapPage() {
     fetchRoadmap();
   }, [user, profile]);
 
-  if (loading) {
-    return (
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-center py-20">
-          <span className="material-symbols-outlined text-outline text-4xl animate-spin">progress_activity</span>
-        </div>
-      </main>
-    );
-  }
+  // Derive topic lists for the active tab
+  const allTopics: RoadmapTopic[] = roadmap
+    ? roadmap.sections.flatMap((s) => s.topics)
+    : [];
 
-  if (!roadmap) {
-    return (
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="text-center py-20">
-          <span className="material-symbols-outlined text-outline text-5xl">error</span>
-          <h2 className="text-on-surface text-xl mt-4">Could not load your roadmap</h2>
-          <p className="text-on-surface-variant text-sm mt-2">Please try refreshing the page.</p>
-        </div>
-      </main>
-    );
-  }
+  const dsaTopics = roadmap?.sections.find((s) =>
+    s.title.includes("Data Structures")
+  )?.topics ?? [];
+  const aptitudeTopics = roadmap?.sections.find((s) =>
+    s.title.includes("Aptitude")
+  )?.topics ?? [];
+
+  const visibleTopics =
+    activeTab === "dsa"
+      ? dsaTopics
+      : activeTab === "aptitude"
+      ? aptitudeTopics
+      : allTopics;
+
+  // Status counts for summary bar
+  const completed = allTopics.filter((t) => t.status === "completed").length;
+  const inProgress = allTopics.filter((t) => t.status === "in-progress").length;
+  const recommended = allTopics.filter((t) => t.status === "recommended").length;
+  const notStarted = allTopics.filter((t) => t.status === "not-started").length;
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
       {/* Header */}
-      <div className="max-w-2xl">
+      <div>
         <h1 className="font-serif text-3xl text-on-surface font-medium tracking-tight">
-          Your Learning Path
+          Your Learning Roadmap
         </h1>
-        <p className="text-on-surface-variant text-sm mt-3 leading-relaxed">
-          Personalized for{" "}
-          <span className="text-primary-brand font-medium">{roadmap.companyName}</span>{" "}
-          interviews. Click a category to expand or collapse it.
+        <p className="text-on-surface-variant text-sm mt-2">
+          {roadmap
+            ? <>Personalised for <span className="text-primary-brand font-medium">{roadmap.companyName}</span> — work through topics in priority order.</>
+            : "Loading your personalised roadmap..."}
         </p>
       </div>
 
-      {/* 2-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
-        {/* Left — Collapsible sections */}
-        <div className="space-y-4">
-          {roadmap.sections.map((section) => (
-            <CollapsibleSection key={section.title} section={section} />
+      {/* Summary stats row */}
+      {!loading && roadmap && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Completed", value: completed, color: "text-green-400", dot: "bg-green-400" },
+            { label: "In Progress", value: inProgress, color: "text-primary-brand", dot: "bg-primary-brand" },
+            { label: "Recommended", value: recommended, color: "text-yellow-400", dot: "bg-yellow-400" },
+            { label: "Not Started", value: notStarted, color: "text-outline", dot: "bg-outline-variant" },
+          ].map((stat) => (
+            <div key={stat.label} className="flex items-center gap-3 rounded-xl bg-surface-container-low subtle-border px-4 py-3">
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${stat.dot}`} />
+              <div>
+                <p className={`text-lg font-semibold font-mono leading-none ${stat.color}`}>{stat.value}</p>
+                <p className="text-on-surface-variant text-xs mt-0.5">{stat.label}</p>
+              </div>
+            </div>
           ))}
         </div>
+      )}
 
-        {/* Right — Sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
+        {/* Left — Quest grid */}
+        <div className="space-y-5">
+          {/* Tab selector */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-container-low subtle-border w-fit">
+            {(["all", "dsa", "aptitude"] as Tab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all capitalize ${
+                  activeTab === tab
+                    ? "bg-primary-container/20 text-primary-brand shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                {tab === "all" ? "All Topics" : tab === "dsa" ? "DSA" : "Aptitude"}
+                {!loading && roadmap && (
+                  <span className="ml-1.5 text-xs text-outline">
+                    ({tab === "all" ? allTopics.length : tab === "dsa" ? dsaTopics.length : aptitudeTopics.length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Grid */}
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {Array.from({ length: 9 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          ) : visibleTopics.length === 0 ? (
+            <div className="rounded-xl bg-surface-container-low subtle-border p-12 text-center">
+              <span className="material-symbols-outlined text-outline text-5xl">search_off</span>
+              <p className="text-on-surface-variant text-sm mt-3">No topics found.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {visibleTopics.map((topic) => (
+                <TopicCard key={topic.slug} topic={topic} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right — Mastery sidebar */}
         <div className="lg:sticky lg:top-20 lg:self-start">
-          <MasterySidebar roadmap={roadmap} streak={profile?.currentStreak || 0} />
+          {loading ? (
+            <div className="space-y-3 animate-pulse">
+              {[80, 60, 120, 90].map((h, i) => (
+                <div key={i} className={`h-${h} rounded-xl bg-surface-container-low`} style={{ height: h }} />
+              ))}
+            </div>
+          ) : roadmap ? (
+            <MasterySidebar roadmap={roadmap} streak={profile?.currentStreak || 0} />
+          ) : null}
         </div>
       </div>
     </main>

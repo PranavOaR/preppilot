@@ -17,6 +17,21 @@ export async function POST(req: NextRequest) {
       type: InterviewType;
     };
 
+    // Reject clearly invalid transcripts before calling Groq
+    const isInvalid =
+      !transcript ||
+      transcript.trim().length < 3 ||
+      transcript.startsWith("[") ||
+      /transcription failed|no speech|no audio|microphone access/i.test(transcript);
+
+    if (isInvalid) {
+      return NextResponse.json({
+        score: 0,
+        evaluation: "No valid answer was received for this question.",
+        comment: "I didn't catch your answer — let's move on. Don't worry, it happens!",
+      });
+    }
+
     const prompt = buildEvaluationPrompt(question, transcript, type);
 
     const completion = await getGroq().chat.completions.create({

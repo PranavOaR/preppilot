@@ -155,26 +155,32 @@ export function RegisterForm() {
       <form className="space-y-4" onSubmit={handleSubmit}>
         {/* Username */}
         <div className="space-y-1.5">
-          <Label className="text-on-surface-variant text-sm">Username</Label>
+          <Label htmlFor="reg-username" className="text-on-surface-variant text-sm">Username</Label>
           <Input
+            id="reg-username"
+            name="username"
             type="text"
             placeholder="johndoe"
             value={form.username}
             onChange={(e) => updateField("username", e.target.value)}
             required
+            autoComplete="username"
             className="h-10 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40"
           />
         </div>
 
         {/* Email */}
         <div className="space-y-1.5">
-          <Label className="text-on-surface-variant text-sm">Email</Label>
+          <Label htmlFor="reg-email" className="text-on-surface-variant text-sm">Email</Label>
           <Input
+            id="reg-email"
+            name="email"
             type="email"
             placeholder="you@university.edu"
             value={form.email}
             onChange={(e) => updateField("email", e.target.value)}
             required
+            autoComplete="email"
             className="h-10 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40"
           />
         </div>
@@ -182,24 +188,30 @@ export function RegisterForm() {
         {/* Password Row */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-on-surface-variant text-sm">Password</Label>
+            <Label htmlFor="reg-password" className="text-on-surface-variant text-sm">Password</Label>
             <Input
+              id="reg-password"
+              name="password"
               type="password"
               placeholder="••••••••"
               value={form.password}
               onChange={(e) => updateField("password", e.target.value)}
               required
+              autoComplete="new-password"
               className="h-10 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40"
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-on-surface-variant text-sm">Confirm</Label>
+            <Label htmlFor="reg-confirm" className="text-on-surface-variant text-sm">Confirm</Label>
             <Input
+              id="reg-confirm"
+              name="confirmPassword"
               type="password"
               placeholder="••••••••"
               value={form.confirmPassword}
               onChange={(e) => updateField("confirmPassword", e.target.value)}
               required
+              autoComplete="new-password"
               className="h-10 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40"
             />
           </div>
@@ -207,12 +219,15 @@ export function RegisterForm() {
 
         {/* University */}
         <div className="space-y-1.5">
-          <Label className="text-on-surface-variant text-sm">University</Label>
+          <Label htmlFor="reg-university" className="text-on-surface-variant text-sm">University</Label>
           <Input
+            id="reg-university"
+            name="university"
             type="text"
             placeholder="VIT, SRM, BITS..."
             value={form.university}
             onChange={(e) => updateField("university", e.target.value)}
+            autoComplete="organization"
             className="h-10 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40"
           />
         </div>
@@ -220,8 +235,10 @@ export function RegisterForm() {
         {/* Year & Semester */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-on-surface-variant text-sm">Year</Label>
+            <Label htmlFor="reg-year" className="text-on-surface-variant text-sm">Year</Label>
             <select
+              id="reg-year"
+              name="year"
               value={form.year}
               onChange={(e) => updateField("year", parseInt(e.target.value))}
               className="w-full h-10 rounded-md bg-surface-container-highest text-on-surface text-sm px-3 outline-none focus:ring-1 focus:ring-primary-brand/40"
@@ -234,8 +251,10 @@ export function RegisterForm() {
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-on-surface-variant text-sm">Semester</Label>
+            <Label htmlFor="reg-semester" className="text-on-surface-variant text-sm">Semester</Label>
             <select
+              id="reg-semester"
+              name="semester"
               value={form.semester}
               onChange={(e) => updateField("semester", parseInt(e.target.value))}
               className="w-full h-10 rounded-md bg-surface-container-highest text-on-surface text-sm px-3 outline-none focus:ring-1 focus:ring-primary-brand/40"
@@ -251,8 +270,10 @@ export function RegisterForm() {
 
         {/* Target Company */}
         <div className="space-y-1.5">
-          <Label className="text-on-surface-variant text-sm">Target Company</Label>
+          <Label htmlFor="reg-company" className="text-on-surface-variant text-sm">Target Company</Label>
           <select
+            id="reg-company"
+            name="targetCompany"
             value={form.targetCompany}
             onChange={(e) => updateField("targetCompany", e.target.value)}
             className="w-full h-10 rounded-md bg-surface-container-highest text-on-surface text-sm px-3 outline-none focus:ring-1 focus:ring-primary-brand/40"
@@ -268,8 +289,10 @@ export function RegisterForm() {
 
         {/* Preferred Language */}
         <div className="space-y-1.5">
-          <Label className="text-on-surface-variant text-sm">Preferred Language</Label>
+          <Label htmlFor="reg-language" className="text-on-surface-variant text-sm">Preferred Language</Label>
           <select
+            id="reg-language"
+            name="preferredLanguage"
             value={form.preferredLanguage}
             onChange={(e) => updateField("preferredLanguage", e.target.value)}
             className="w-full h-10 rounded-md bg-surface-container-highest text-on-surface text-sm px-3 outline-none focus:ring-1 focus:ring-primary-brand/40"

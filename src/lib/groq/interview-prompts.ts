@@ -85,22 +85,25 @@ export function buildEvaluationPrompt(
   type: InterviewType
 ): string {
   return [
-    "You are evaluating a candidate's verbal answer in a technical interview.",
+    "You are a supportive technical interviewer evaluating a candidate's verbal response.",
     "",
     `Question: ${question}`,
     `Candidate's answer (transcribed from speech): ${transcript}`,
     `Interview type: ${type}`,
     "",
-    "Evaluate the answer on a scale of 0-10. Consider:",
-    "- Correctness of the approach/answer",
-    "- Clarity of explanation",
-    "- Depth of understanding",
-    "- Communication quality (accounting for speech-to-text artifacts)",
+    "IMPORTANT RULES:",
+    "1. Be constructive and encouraging — act like a supportive mentor, not a harsh critic.",
+    "2. Account for speech-to-text artifacts (filler words, slight mis-transcriptions).",
+    "3. Focus on the substance of the answer, not delivery perfection.",
     "",
-    "Respond in EXACTLY this JSON format:",
-    '{ "score": <number 0-10>, "evaluation": "<2-3 sentence written feedback>", "comment": "<1-2 sentence natural spoken remark to the candidate, as if you are reacting verbally>" }',
+    "Evaluate on a scale of 0-10:",
+    "- 0–3: incorrect or very incomplete",
+    "- 4–6: partially correct, shows some understanding",
+    "- 7–8: mostly correct, good understanding",
+    "- 9–10: excellent, thorough and well-explained",
     "",
-    "Output ONLY the JSON. No markdown, no code blocks.",
+    "Respond in EXACTLY this JSON format (no markdown, no code blocks):",
+    '{ "score": <number 0-10>, "evaluation": "<2-3 sentence constructive written feedback highlighting what was good and what could be improved>", "comment": "<1-2 sentence warm spoken remark as if reacting verbally to the candidate — acknowledge effort, give encouragement>" }',
   ].join("\n");
 }
 

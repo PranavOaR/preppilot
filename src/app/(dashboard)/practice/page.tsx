@@ -55,10 +55,30 @@ export default function PracticePage() {
 
       <Suspense
         fallback={
-          <div className="flex items-center justify-center py-12">
-            <span className="material-symbols-outlined text-outline text-4xl animate-spin">
-              progress_activity
-            </span>
+          <div className="space-y-6 animate-pulse">
+            {/* Filters skeleton */}
+            <div className="flex gap-3 flex-wrap">
+              {[100, 130, 110, 90, 160].map((w, i) => (
+                <div key={i} className="h-9 rounded-lg bg-surface-container-low" style={{ width: w }} />
+              ))}
+            </div>
+            {/* Table skeleton */}
+            <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+              <div className="h-10 border-b border-outline-variant/10 px-5 flex items-center">
+                <div className="h-3 w-32 rounded bg-surface-container" />
+              </div>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-16 border-b border-outline-variant/5 px-5 flex items-center gap-4">
+                  <div className="w-5 h-5 rounded-full bg-surface-container" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 rounded bg-surface-container w-48" />
+                    <div className="h-2.5 rounded bg-surface-container w-24" />
+                  </div>
+                  <div className="h-3 rounded bg-surface-container w-16 hidden md:block" />
+                  <div className="h-3 rounded bg-surface-container w-12" />
+                </div>
+              ))}
+            </div>
           </div>
         }
       >

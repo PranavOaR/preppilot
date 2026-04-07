@@ -109,11 +109,12 @@ export default function DashboardPage() {
           .slice(0, 3);
         setWeakTopics(weak);
 
-        // Find unsolved problems for daily challenge (pick random unsolved)
-        const unsolvedProblems = allProblems.filter((p) => !solvedSet.has(p.id));
-        // Shuffle and pick up to 3
-        const shuffled = unsolvedProblems.sort(() => Math.random() - 0.5).slice(0, 3);
-        setUnsolved(shuffled);
+        // Find unsolved problems for daily challenge — 1 DSA + 1 Aptitude
+        const unsolvedDSA = allProblems.filter((p) => !solvedSet.has(p.id) && p.type === "dsa");
+        const unsolvedAptitude = allProblems.filter((p) => !solvedSet.has(p.id) && p.type === "aptitude");
+        const pickedDSA = unsolvedDSA.sort(() => Math.random() - 0.5).slice(0, 1);
+        const pickedAptitude = unsolvedAptitude.sort(() => Math.random() - 0.5).slice(0, 1);
+        setUnsolved([...pickedDSA, ...pickedAptitude]);
 
         // Active/upcoming contests
         const liveContests = contests.filter((c) => c.status === "active" || c.status === "upcoming");
@@ -131,9 +132,29 @@ export default function DashboardPage() {
 
   if (authLoading) {
     return (
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-center py-20">
-          <span className="material-symbols-outlined text-outline text-4xl animate-spin">progress_activity</span>
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8 animate-pulse">
+        {/* Welcome row */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-56 rounded-lg bg-surface-container-low" />
+            <div className="h-3.5 w-72 rounded bg-surface-container-low" />
+          </div>
+          <div className="flex gap-3">
+            <div className="h-10 w-28 rounded-lg bg-surface-container-low" />
+            <div className="h-10 w-24 rounded-lg bg-surface-container-low" />
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="h-16 rounded-xl bg-surface-container-low" />
+        {/* Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
+          <div className="space-y-4">
+            <div className="h-5 w-40 rounded bg-surface-container-low" />
+            {[1, 2].map((i) => <div key={i} className="h-20 rounded-lg bg-surface-container-low" />)}
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-lg bg-surface-container-low" />)}
+          </div>
         </div>
       </main>
     );
@@ -216,7 +237,7 @@ export default function DashboardPage() {
 
             {dataLoading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
+                {[1, 2].map((i) => (
                   <div key={i} className="h-20 rounded-lg bg-surface-container-low animate-pulse" />
                 ))}
               </div>
@@ -270,10 +291,15 @@ export default function DashboardPage() {
           {/* Weak Areas — Topics to Improve */}
           {weakTopics.length > 0 && (
             <div className="space-y-4">
-              <h3 className="font-serif text-on-surface text-lg font-medium flex items-center gap-2">
-                <span className="material-symbols-outlined text-error-brand text-xl">trending_down</span>
-                Needs Improvement
-              </h3>
+              <div>
+                <h3 className="font-serif text-on-surface text-lg font-medium flex items-center gap-2">
+                  <span className="material-symbols-outlined text-error-brand text-xl">trending_down</span>
+                  Needs Improvement
+                </h3>
+                <p className="text-on-surface-variant text-xs mt-1 ml-7">
+                  Topics you&apos;ve attempted but struggled with — focus here to boost your accuracy.
+                </p>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {weakTopics.map((wt) => (
                   <Link
@@ -291,9 +317,16 @@ export default function DashboardPage() {
                         {wt.accuracy}% accuracy
                       </span>
                       <span className="text-on-surface-variant text-xs">
-                        {wt.solved}/{wt.total}
+                        {wt.solved}/{wt.total} solved
                       </span>
                     </div>
+                    <p className="text-outline text-[10px] mt-1">
+                      {wt.accuracy < 30
+                        ? "Start with easy problems"
+                        : wt.accuracy < 60
+                        ? "Review concepts, then retry"
+                        : "Almost there — keep practicing"}
+                    </p>
                     <div className="w-full h-1.5 rounded-full bg-surface-container-high mt-2">
                       <div
                         className={`h-1.5 rounded-full ${wt.accuracy < 50 ? "bg-error-brand" : "bg-yellow-400"}`}
@@ -388,25 +421,40 @@ export default function DashboardPage() {
               </p>
             ) : (
               <div className="space-y-2">
-                {recentSubmissions.map((sub) => (
-                  <Link
-                    key={sub.id}
-                    href={`/practice/${sub.problemSlug || sub.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-on-surface text-xs font-medium truncate">
-                        {sub.problemTitle || "Untitled"}
-                      </p>
-                      <p className="text-outline text-[10px] mt-0.5">
-                        {sub.submittedAt ? formatRelativeTime(sub.submittedAt.seconds) : ""}
-                      </p>
+                {recentSubmissions.map((sub) => {
+                  const slug = sub.problemSlug;
+                  const inner = (
+                    <>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-on-surface text-xs font-medium truncate">
+                          {sub.problemTitle || "Unknown problem"}
+                        </p>
+                        <p className="text-outline text-[10px] mt-0.5">
+                          {sub.submittedAt ? formatRelativeTime(sub.submittedAt.seconds) : ""}
+                        </p>
+                      </div>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${
+                        sub.status === "accepted" ? "bg-green-400" : "bg-error-brand"
+                      }`} />
+                    </>
+                  );
+                  return slug ? (
+                    <Link
+                      key={sub.id}
+                      href={`/practice/${slug}`}
+                      className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors"
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low"
+                    >
+                      {inner}
                     </div>
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${
-                      sub.status === "accepted" ? "bg-green-400" : "bg-error-brand"
-                    }`} />
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
