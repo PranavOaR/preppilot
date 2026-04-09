@@ -169,12 +169,15 @@ export default function ContestTakePage() {
         }),
       });
       const data = await res.json();
-      if (data.results) {
+      if (data.error) {
+        setRunResults([{ passed: false, status: "Error", error: data.error }]);
+        setRunSummary({ total: 1, passed: 0 });
+      } else if (data.results) {
         setRunResults(data.results);
         setRunSummary({ total: data.summary.total, passed: data.summary.passed });
       }
     } catch {
-      setRunResults([{ passed: false, status: "Error", error: "Failed to connect to server" }]);
+      setRunResults([{ passed: false, status: "Error", error: "Failed to connect to Judge0 execution service" }]);
       setRunSummary({ total: 1, passed: 0 });
     } finally {
       setRunning(false);

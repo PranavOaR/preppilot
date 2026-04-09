@@ -15,6 +15,7 @@ import { CodeReviewPanel } from "@/components/practice/code-review-panel";
 import type { Problem } from "@/lib/types";
 import type { TestCaseResult } from "@/lib/judge/client";
 import { PLAN_LIMITS } from "@/lib/types/plans";
+import { checkAndIncrementUsage } from "@/lib/plans/usage";
 import Link from "next/link";
 
 // Dynamically import Monaco to avoid SSR issues
@@ -105,6 +106,22 @@ export default function ProblemPage() {
 
   async function handleRun() {
     if (!problem) return;
+
+    // Client-side quota check (runs with authenticated Firestore context)
+    if (user) {
+      const check = await checkAndIncrementUsage(user.uid, "dsaRun");
+      if (!check.allowed) {
+        setActiveTab("results");
+        setResults([{
+          input: "", expectedOutput: "", actualOutput: "",
+          passed: false, status: "Quota Reached", time: null, memory: null,
+          error: `You've used all ${check.limit} runs this month on your ${check.plan} plan. Upgrade for more.`,
+        }]);
+        setSummary({ total: 1, passed: 0, allPassed: false, mode: "run" });
+        return;
+      }
+    }
+
     setRunning(true);
     setActiveTab("results");
     setResults(null);
@@ -119,7 +136,6 @@ export default function ProblemPage() {
           language: selectedLang,
           testCases: problem.testCases,
           mode: "run",
-          userId: user?.uid,
         }),
       });
       const data = await res.json();
@@ -157,11 +173,29 @@ export default function ProblemPage() {
       setSummary({ total: 1, passed: 0, allPassed: false, mode: "run" });
     } finally {
       setRunning(false);
+      // Refresh usage counts after a run
+      if (user) refreshProfile();
     }
   }
 
   async function handleSubmit() {
     if (!problem) return;
+
+    // Client-side quota check
+    if (user) {
+      const check = await checkAndIncrementUsage(user.uid, "dsaSubmit");
+      if (!check.allowed) {
+        setActiveTab("results");
+        setResults([{
+          input: "", expectedOutput: "", actualOutput: "",
+          passed: false, status: "Quota Reached", time: null, memory: null,
+          error: `You've used all ${check.limit} submits this month on your ${check.plan} plan. Upgrade for more.`,
+        }]);
+        setSummary({ total: 1, passed: 0, allPassed: false, mode: "submit" });
+        return;
+      }
+    }
+
     setSubmitting(true);
     setActiveTab("results");
     setResults(null);
@@ -176,7 +210,6 @@ export default function ProblemPage() {
           language: selectedLang,
           testCases: problem.testCases,
           mode: "submit",
-          userId: user?.uid,
         }),
       });
       const data = await res.json();

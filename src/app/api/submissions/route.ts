@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { runAgainstTestCases } from "@/lib/judge/client";
 import { LANGUAGE_IDS } from "@/lib/judge/languages";
-import { checkAndIncrementUsage } from "@/lib/plans/usage";
 
 /**
  * Comprehensive C++ auto-wrapper for LeetCode-style Solution classes.
@@ -302,30 +301,12 @@ function wrapCppSolution(code: string): string | null {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { code, language, testCases, mode, userId } = body as {
+    const { code, language, testCases, mode } = body as {
       code: string;
       language: string;
       testCases: { input: string; expectedOutput: string; isHidden: boolean }[];
       mode: "run" | "submit";
-      userId?: string;
     };
-
-    // Check and increment usage limit if userId provided
-    if (userId) {
-      const action = mode === "submit" ? "dsaSubmit" : "dsaRun";
-      const check = await checkAndIncrementUsage(userId, action);
-      if (!check.allowed) {
-        return Response.json(
-          {
-            error: "limit_reached",
-            message: `You've reached your ${action === "dsaRun" ? "run" : "submit"} limit for this month on your ${check.plan} plan. Upgrade to get more.`,
-            limit: check.limit,
-            plan: check.plan,
-          },
-          { status: 429 }
-        );
-      }
-    }
 
     if (!code || !language || !testCases) {
       return Response.json({ error: "Missing required fields" }, { status: 400 });

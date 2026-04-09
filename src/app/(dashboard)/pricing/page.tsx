@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/contexts/toast-context";
@@ -137,13 +137,25 @@ export default function PricingPage() {
             }
 
             const { planExpiresAt } = await verifyRes.json();
+            const { inr } = PLAN_PRICES[tier];
 
-            // Step 2: write plan to Firestore from client (authenticated context)
-            await updateDoc(doc(db, "users", user.uid), {
-              plan: tier,
-              planExpiresAt,
-              updatedAt: serverTimestamp(),
-            });
+            // Step 2: write plan + payment record to Firestore (authenticated client)
+            await Promise.all([
+              updateDoc(doc(db, "users", user.uid), {
+                plan: tier,
+                planExpiresAt,
+                updatedAt: serverTimestamp(),
+              }),
+              setDoc(doc(db, "payments", response.razorpay_payment_id), {
+                userId: user.uid,
+                plan: tier,
+                amountInr: inr,
+                orderId: response.razorpay_order_id,
+                paymentId: response.razorpay_payment_id,
+                planExpiresAt,
+                paidAt: serverTimestamp(),
+              }),
+            ]);
 
             await refreshProfile();
             showToast(`You're now on the ${PLANS.find((p) => p.tier === tier)?.name} plan!`, "success");

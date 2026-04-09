@@ -9,6 +9,15 @@ import { Heatmap } from "@/components/profile/heatmap";
 import { ProblemsDonut } from "@/components/profile/problems-donut";
 import { RecentSubmissions } from "@/components/profile/recent-submissions";
 import type { Problem } from "@/lib/types";
+import { type PlanTier } from "@/lib/types/plans";
+import Link from "next/link";
+
+const PLAN_BADGE: Record<PlanTier, { label: string; className: string }> = {
+  free:    { label: "FREE",    className: "bg-surface-container-high text-on-surface-variant" },
+  starter: { label: "STARTER", className: "bg-blue-500/15 text-blue-400" },
+  pro:     { label: "PRO",     className: "bg-purple-500/15 text-purple-400" },
+  premium: { label: "PREMIUM", className: "bg-amber-500/15 text-amber-400" },
+};
 
 interface SubmissionData {
   problemTitle: string;
@@ -160,9 +169,31 @@ export default function ProfilePage() {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-serif text-xl text-on-surface font-medium">
-              {displayName}
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="font-serif text-xl text-on-surface font-medium">
+                {displayName}
+              </h2>
+              {(() => {
+                const plan = (profile.plan || "free") as PlanTier;
+                const badge = PLAN_BADGE[plan];
+                const expiresAt = profile.planExpiresAt;
+                const daysLeft = expiresAt
+                  ? Math.ceil((expiresAt - Date.now()) / (1000 * 60 * 60 * 24))
+                  : null;
+                return (
+                  <Link href="/pricing">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80 transition-opacity ${badge.className}`}>
+                      {badge.label}
+                    </span>
+                    {plan !== "free" && daysLeft !== null && daysLeft <= 30 && (
+                      <span className={`ml-1.5 text-xs ${daysLeft <= 7 ? "text-error" : "text-on-surface-variant"}`}>
+                        · {daysLeft > 0 ? `${daysLeft}d left` : "Expired"}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })()}
+            </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-on-surface-variant">
               {profile.university && (
                 <span className="flex items-center gap-1.5">

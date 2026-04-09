@@ -14,6 +14,8 @@ interface AdminStats {
   totalSubmissions: number;
   flaggedUsers: number;
   planCounts: Record<PlanTier, number>;
+  totalRevenueInr: number;
+  paymentsThisMonth: number;
 }
 
 const PLAN_COLORS: Record<PlanTier, string> = {
@@ -32,11 +34,12 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        const [problemsSnap, contestsSnap, submissionsSnap, users] =
+        const [problemsSnap, contestsSnap, submissionsSnap, paymentsSnap, users] =
           await Promise.all([
             getDocs(collection(db, "problems")),
             getDocs(collection(db, "contests")),
             getDocs(collection(db, "submissions")),
+            getDocs(collection(db, "payments")),
             getAllUsers(),
           ]);
 
@@ -51,6 +54,16 @@ export default function AdminDashboardPage() {
         }
         setFlaggedUsers(flagged);
 
+        const thisMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+        let totalRevenueInr = 0;
+        let paymentsThisMonth = 0;
+        for (const p of paymentsSnap.docs) {
+          const d = p.data();
+          totalRevenueInr += d.amountInr || 0;
+          const paidAt = d.paidAt?.toDate?.()?.toISOString?.()?.slice(0, 7);
+          if (paidAt === thisMonth) paymentsThisMonth++;
+        }
+
         setStats({
           totalUsers: users.length,
           totalProblems: problemsSnap.size,
@@ -58,6 +71,8 @@ export default function AdminDashboardPage() {
           totalSubmissions: submissionsSnap.size,
           flaggedUsers: flagged.length,
           planCounts,
+          totalRevenueInr,
+          paymentsThisMonth,
         });
 
         const subs = submissionsSnap.docs
@@ -95,6 +110,20 @@ export default function AdminDashboardPage() {
     { label: "Contests", value: stats?.totalContests ?? 0, icon: "emoji_events", color: "text-yellow-400", href: "/admin/contests" },
     { label: "Submissions", value: stats?.totalSubmissions ?? 0, icon: "assignment_turned_in", color: "text-purple-400", href: null },
     { label: "Flagged Users", value: stats?.flaggedUsers ?? 0, icon: "flag", color: "text-error", href: "/admin/users" },
+    {
+      label: "Revenue (all time)",
+      value: `₹${(stats?.totalRevenueInr ?? 0).toLocaleString("en-IN")}`,
+      icon: "currency_rupee",
+      color: "text-green-400",
+      href: null,
+    },
+    {
+      label: "Payments this month",
+      value: stats?.paymentsThisMonth ?? 0,
+      icon: "payments",
+      color: "text-amber-400",
+      href: null,
+    },
   ];
 
   const paidUsers = (stats?.planCounts.starter ?? 0) + (stats?.planCounts.pro ?? 0) + (stats?.planCounts.premium ?? 0);
@@ -111,7 +140,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         {statCards.map((card) => {
           const inner = (
             <div className="rounded-lg bg-surface-container-low subtle-border p-5 hover:bg-surface-container transition-colors h-full">
