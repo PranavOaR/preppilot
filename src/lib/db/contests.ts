@@ -33,6 +33,13 @@ interface CreateContestData {
 }
 
 export async function createContest(data: CreateContestData) {
+  if (data.endTime <= data.startTime) {
+    throw new Error("Contest end time must be after start time");
+  }
+  if (data.startTime < new Date(Date.now() - 60_000)) {
+    throw new Error("Contest start time cannot be in the past");
+  }
+
   const docRef = await addDoc(collection(db, CONTESTS_COLLECTION), {
     ...data,
     createdAt: serverTimestamp(),

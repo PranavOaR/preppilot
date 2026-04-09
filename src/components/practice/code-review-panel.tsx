@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 
 interface CodeReviewPanelProps {
@@ -38,7 +39,7 @@ export function CodeReviewPanel({ problemId, code, language, passed }: CodeRevie
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to get review.");
+        setError(data.error === "limit_reached" ? data.message : (data.error || "Failed to get review."));
         return;
       }
 
@@ -61,7 +62,7 @@ export function CodeReviewPanel({ problemId, code, language, passed }: CodeRevie
           Get AI Code Review
         </button>
         <p className="text-xs text-on-surface-variant mt-1.5 ml-1">
-          Free — get complexity analysis and quality feedback
+          Get complexity analysis and quality feedback (Pro/Premium)
         </p>
       </div>
     );
@@ -81,15 +82,22 @@ export function CodeReviewPanel({ problemId, code, language, passed }: CodeRevie
   }
 
   if (error) {
+    const isLimitReached = error.toLowerCase().includes("upgrade") || error.toLowerCase().includes("not available");
     return (
       <div className="mt-4 pt-4 border-t border-outline-variant/10">
         <div className="text-xs text-error bg-error/10 px-3 py-2 rounded-lg mb-2">{error}</div>
-        <button
-          onClick={handleGetReview}
-          className="text-xs text-primary-brand hover:underline"
-        >
-          Retry
-        </button>
+        {isLimitReached ? (
+          <Link href="/pricing" className="text-xs text-primary-brand hover:underline">
+            View plans →
+          </Link>
+        ) : (
+          <button
+            onClick={handleGetReview}
+            className="text-xs text-primary-brand hover:underline"
+          >
+            Retry
+          </button>
+        )}
       </div>
     );
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
@@ -11,12 +12,26 @@ const mainLinks = [
   { href: "/leaderboard", icon: "emoji_events", label: "Contests" },
   { href: "/interview", icon: "record_voice_over", label: "Interview" },
   { href: "/mock-tests", icon: "quiz", label: "Mock Tests" },
+  { href: "/pricing", icon: "upgrade", label: "Pricing" },
 ];
+
+const PLAN_BADGE: Record<string, { label: string; className: string }> = {
+  free:    { label: "FREE",    className: "bg-surface-container text-on-surface-variant" },
+  starter: { label: "STARTER", className: "bg-blue-500/15 text-blue-400" },
+  pro:     { label: "PRO",     className: "bg-purple-500/15 text-purple-400" },
+  premium: { label: "PREMIUM", className: "bg-amber-500/15 text-amber-400" },
+};
 
 export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, profile, isAdmin, signOut } = useAuth();
+  const [expiryBannerDismissed, setExpiryBannerDismissed] = useState(false);
+
+  // Read dismissal from sessionStorage on mount
+  useEffect(() => {
+    setExpiryBannerDismissed(!!sessionStorage.getItem("planExpiryBannerDismissed"));
+  }, []);
 
   async function handleSignOut() {
     await signOut();
@@ -24,10 +39,58 @@ export function TopNav() {
     router.push("/login");
   }
 
+  function dismissExpiryBanner() {
+    sessionStorage.setItem("planExpiryBannerDismissed", "1");
+    setExpiryBannerDismissed(true);
+  }
+
   const displayName = profile?.username || user?.displayName || user?.email?.split("@")[0] || "User";
   const initial = displayName.charAt(0).toUpperCase();
+  const plan = profile?.plan || "free";
+  const planBadge = PLAN_BADGE[plan] ?? PLAN_BADGE.free;
+
+  // Plan expiry banner logic
+  const planExpiresAt = profile?.planExpiresAt;
+  const now = Date.now();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  const showExpiringSoon =
+    !expiryBannerDismissed &&
+    plan !== "free" &&
+    planExpiresAt !== undefined &&
+    planExpiresAt > now &&
+    planExpiresAt - now < sevenDays;
+  const showExpired =
+    !expiryBannerDismissed &&
+    !showExpiringSoon &&
+    planExpiresAt !== undefined &&
+    planExpiresAt < now;
+  const daysLeft = planExpiresAt
+    ? Math.ceil((planExpiresAt - now) / (24 * 60 * 60 * 1000))
+    : 0;
 
   return (
+    <>
+      {/* Plan Expiry Banner */}
+      {(showExpiringSoon || showExpired) && (
+        <div className="sticky top-0 z-[60] bg-yellow-500/10 border-b border-yellow-500/20 px-6 py-2 flex items-center justify-between gap-4">
+          <p className="text-yellow-400 text-sm">
+            {showExpiringSoon
+              ? `Your ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}.`
+              : "Your plan has expired. You're now on the Free tier."}{" "}
+            <Link href="/pricing" className="underline hover:no-underline font-medium">
+              {showExpiringSoon ? "Renew →" : "Upgrade →"}
+            </Link>
+          </p>
+          <button
+            onClick={dismissExpiryBanner}
+            className="text-yellow-400/70 hover:text-yellow-400 transition-colors shrink-0"
+            aria-label="Dismiss"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+      )}
+
     <header className="sticky top-0 z-50 glass-panel subtle-border border-t-0 border-x-0">
       <nav className="flex items-center justify-between px-6 py-3">
         {/* Logo */}
@@ -92,6 +155,13 @@ export function TopNav() {
           {/* User Avatar & Sign Out */}
           <div className="flex items-center gap-2">
             <Link
+              href="/pricing"
+              className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider transition-opacity hover:opacity-80 ${planBadge.className}`}
+              title="View pricing plans"
+            >
+              {planBadge.label}
+            </Link>
+            <Link
               href="/profile"
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
@@ -123,5 +193,6 @@ export function TopNav() {
         </div>
       </nav>
     </header>
+    </>
   );
 }

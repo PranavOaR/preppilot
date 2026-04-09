@@ -86,6 +86,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
   const [pendingTranscript, setPendingTranscript] = useState("");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [micError, setMicError] = useState("");
+  const [quotaError, setQuotaError] = useState("");
 
   const qasRef = useRef<InterviewQA[]>([]);
   const abortRef = useRef(false);
@@ -440,10 +441,17 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
                 questionIndex: i,
                 totalQuestions: config.totalQuestions,
                 previousQAs: allQAs,
+                userId,
               }),
             },
             10000
           );
+          if (res.status === 429 && i === 0) {
+            const data = await res.json();
+            setQuotaError(data.message || "You've used your interview for this period. Upgrade for more.");
+            abortRef.current = true;
+            break;
+          }
           const data = await res.json();
           if (data.question) question = data.question;
         } catch {}
@@ -658,6 +666,15 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
           </button>
         )}
       </div>
+
+      {/* Interview quota reached */}
+      {quotaError && (
+        <div className="bg-red-500/10 border border-red-400/25 rounded-xl px-4 py-3 text-sm text-red-400 space-y-1">
+          <p className="font-medium">Interview limit reached</p>
+          <p>{quotaError}</p>
+          <a href="/pricing" className="underline hover:no-underline text-xs">View plans →</a>
+        </div>
+      )}
 
       {/* Mic permission error */}
       {micError && (

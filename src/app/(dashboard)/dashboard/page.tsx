@@ -8,6 +8,7 @@ import { getProblems } from "@/lib/db/problems";
 import { getUserProgress } from "@/lib/db/progress";
 import { getContests } from "@/lib/db/contests";
 import type { Problem, Contest } from "@/lib/types";
+import { PLAN_LIMITS } from "@/lib/types/plans";
 
 interface SubmissionItem {
   id: string;
@@ -398,6 +399,84 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
+
+          {/* Monthly Usage */}
+          {profile && (() => {
+            const plan = profile.plan || "free";
+            const limits = PLAN_LIMITS[plan];
+            const usage = profile.usageThisMonth;
+            const items = [
+              { label: "DSA Runs", used: usage?.dsaRuns ?? 0, limit: limits.dsaRuns },
+              { label: "Submits", used: usage?.dsaSubmits ?? 0, limit: limits.dsaSubmits },
+              { label: "AI Hints", used: usage?.aiHints ?? 0, limit: limits.aiHints },
+              {
+                label: "Code Reviews",
+                used: usage?.codeReviews ?? 0,
+                limit: limits.codeReviews,
+                notAvailable: limits.codeReviews === 0,
+              },
+              {
+                label: "Interviews",
+                used: limits.interviewsMonthly
+                  ? (usage?.interviewsThisMonth ?? 0)
+                  : (usage?.interviewsLifetime ?? 0),
+                limit: limits.interviews,
+                lifetime: !limits.interviewsMonthly,
+              },
+            ];
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-on-surface-variant text-xs uppercase tracking-wider font-medium">
+                    This Month&apos;s Usage
+                  </h4>
+                  <Link href="/pricing" className="text-primary-brand text-xs hover:underline">
+                    {plan === "free" ? "Upgrade" : "Manage"}
+                  </Link>
+                </div>
+                <div className="rounded-lg bg-surface-container-low p-4 space-y-3">
+                  {items.map(({ label, used, limit, notAvailable, lifetime }) => {
+                    const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+                    const barColor = notAvailable
+                      ? "bg-surface-container-high"
+                      : pct >= 100
+                      ? "bg-error"
+                      : pct >= 50
+                      ? "bg-yellow-400"
+                      : "bg-green-400";
+                    return (
+                      <div key={label} className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-on-surface-variant text-xs">{label}</span>
+                          <span className="text-on-surface-variant text-[10px] font-mono">
+                            {notAvailable
+                              ? "Not on your plan"
+                              : `${used} / ${limit}${lifetime ? " lifetime" : ""}`}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-surface-container-high">
+                          {!notAvailable && (
+                            <div
+                              className={`h-1.5 rounded-full transition-all ${barColor}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {plan === "free" && (
+                    <Link
+                      href="/pricing"
+                      className="block text-center text-xs text-primary-brand hover:underline mt-1"
+                    >
+                      Upgrade for higher limits →
+                    </Link>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Recent Activity */}
           <div className="space-y-3">

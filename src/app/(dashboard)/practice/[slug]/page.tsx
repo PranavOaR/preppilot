@@ -14,6 +14,7 @@ import { HintPanel } from "@/components/practice/hint-panel";
 import { CodeReviewPanel } from "@/components/practice/code-review-panel";
 import type { Problem } from "@/lib/types";
 import type { TestCaseResult } from "@/lib/judge/client";
+import { PLAN_LIMITS } from "@/lib/types/plans";
 import Link from "next/link";
 
 // Dynamically import Monaco to avoid SSR issues
@@ -41,10 +42,18 @@ const monacoLangMap: Record<string, string> = {
   java: "java",
 };
 
+function getUsageColor(used: number, limit: number): string {
+  if (limit === 0) return "text-outline";
+  const remaining = limit - used;
+  if (remaining <= 2) return "text-error";
+  if (remaining / limit <= 0.5) return "text-yellow-400";
+  return "text-green-400";
+}
+
 export default function ProblemPage() {
   const params = useParams();
   const slug = params.slug as string;
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
 
   const [problem, setProblem] = useState<Problem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,6 +119,7 @@ export default function ProblemPage() {
           language: selectedLang,
           testCases: problem.testCases,
           mode: "run",
+          userId: user?.uid,
         }),
       });
       const data = await res.json();
@@ -166,6 +176,7 @@ export default function ProblemPage() {
           language: selectedLang,
           testCases: problem.testCases,
           mode: "submit",
+          userId: user?.uid,
         }),
       });
       const data = await res.json();
@@ -554,42 +565,72 @@ export default function ProblemPage() {
             )}
 
             {/* Action Bar */}
-            <div className="flex items-center justify-end gap-3 px-4 py-3 bg-surface-container border-t border-outline-variant/10 shrink-0">
-              <Button
-                variant="ghost"
-                onClick={handleRun}
-                disabled={running || submitting || !code.trim()}
-                className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high text-sm h-9 cursor-pointer disabled:opacity-40"
-              >
-                {running ? (
-                  <>
-                    <span className="material-symbols-outlined text-[16px] mr-1 animate-spin">progress_activity</span>
-                    Running...
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[16px] mr-1">play_arrow</span>
-                    Run Tests
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={running || submitting || !code.trim()}
-                className="gradient-primary text-on-primary font-medium px-5 h-9 hover:opacity-90 transition-opacity text-sm cursor-pointer disabled:opacity-40"
-              >
-                {submitting ? (
-                  <>
-                    <span className="material-symbols-outlined text-[16px] mr-1 animate-spin">progress_activity</span>
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[16px] mr-1">upload</span>
-                    Submit
-                  </>
-                )}
-              </Button>
+            <div className="px-4 py-3 bg-surface-container border-t border-outline-variant/10 shrink-0 space-y-2">
+              {/* Usage indicators */}
+              {profile && (() => {
+                const plan = profile.plan || "free";
+                const limits = PLAN_LIMITS[plan];
+                const usage = profile.usageThisMonth;
+                const runsUsed = usage?.dsaRuns ?? 0;
+                const submitsUsed = usage?.dsaSubmits ?? 0;
+                const runsLeft = limits.dsaRuns - runsUsed;
+                const submitsLeft = limits.dsaSubmits - submitsUsed;
+                return (
+                  <div className="flex items-center gap-4 text-[10px]">
+                    <span className={getUsageColor(runsUsed, limits.dsaRuns)}>
+                      {runsLeft <= 0 ? (
+                        <Link href="/pricing" className="underline">Out of runs — Upgrade →</Link>
+                      ) : (
+                        `Runs: ${runsLeft} left`
+                      )}
+                    </span>
+                    <span className={getUsageColor(submitsUsed, limits.dsaSubmits)}>
+                      {submitsLeft <= 0 ? (
+                        <Link href="/pricing" className="underline">Out of submits — Upgrade →</Link>
+                      ) : (
+                        `Submits: ${submitsLeft} left`
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
+              <div className="flex items-center justify-end gap-3">
+                <Button
+                  variant="ghost"
+                  onClick={handleRun}
+                  disabled={running || submitting || !code.trim()}
+                  className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high text-sm h-9 cursor-pointer disabled:opacity-40"
+                >
+                  {running ? (
+                    <>
+                      <span className="material-symbols-outlined text-[16px] mr-1 animate-spin">progress_activity</span>
+                      Running...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[16px] mr-1">play_arrow</span>
+                      Run Tests
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={running || submitting || !code.trim()}
+                  className="gradient-primary text-on-primary font-medium px-5 h-9 hover:opacity-90 transition-opacity text-sm cursor-pointer disabled:opacity-40"
+                >
+                  {submitting ? (
+                    <>
+                      <span className="material-symbols-outlined text-[16px] mr-1 animate-spin">progress_activity</span>
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[16px] mr-1">upload</span>
+                      Submit
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { getUserUnlockedLevels } from "@/lib/db/hints";
 import { getCachedHint } from "@/lib/db/hints";
+import { PLAN_LIMITS } from "@/lib/types/plans";
 
 const HINT_LEVELS = [
   { level: 1, label: "Nudge", cost: 5, icon: "lightbulb" },
@@ -81,6 +83,11 @@ export function HintPanel({ problemId }: HintPanelProps) {
   }
 
   const userXP = profile?.xp ?? 0;
+  const plan = profile?.plan || "free";
+  const hintLimit = PLAN_LIMITS[plan].aiHints;
+  const hintsUsed = profile?.usageThisMonth?.aiHints ?? 0;
+  const hintsLeft = hintLimit - hintsUsed;
+  const monthlyQuotaReached = hintsLeft <= 0;
 
   return (
     <div className="space-y-2">
@@ -102,14 +109,28 @@ export function HintPanel({ problemId }: HintPanelProps) {
 
       {isOpen && (
         <div className="rounded-lg bg-surface-container-low subtle-border p-4 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-on-surface-variant">
               Progressive hints — each level reveals more. Costs XP.
             </p>
-            <span className="text-xs text-primary-brand font-medium">
-              {userXP} XP available
-            </span>
+            <div className="flex flex-col items-end gap-0.5 shrink-0">
+              <span className="text-xs text-primary-brand font-medium">
+                {userXP} XP
+              </span>
+              <span className={`text-[10px] ${monthlyQuotaReached ? "text-error" : hintsLeft <= 2 ? "text-yellow-400" : "text-on-surface-variant"}`}>
+                {hintsLeft}/{hintLimit} hints left
+              </span>
+            </div>
           </div>
+
+          {monthlyQuotaReached && (
+            <div className="text-xs text-error bg-error/10 px-3 py-2 rounded-lg">
+              Monthly hint quota reached.{" "}
+              <Link href="/pricing" className="underline hover:no-underline font-medium">
+                Upgrade →
+              </Link>
+            </div>
+          )}
 
           {error && (
             <div className="text-xs text-error bg-error/10 px-3 py-2 rounded-lg">
@@ -124,6 +145,7 @@ export function HintPanel({ problemId }: HintPanelProps) {
               const isLoading = loading === level;
               const canUnlock =
                 !isUnlocked &&
+                !monthlyQuotaReached &&
                 (level === 1 || unlockedLevels.includes(level - 1));
               const isLocked = !isUnlocked && !canUnlock;
 

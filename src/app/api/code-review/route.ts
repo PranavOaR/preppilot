@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateCodeReview } from "@/lib/groq/client";
 import { buildCodeReviewPrompt } from "@/lib/groq/prompts";
 import { getProblemById } from "@/lib/db/problems";
+import { checkAndIncrementUsage } from "@/lib/plans/usage";
 import { db } from "@/lib/firebase/client";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
     const cacheKey = `${problemId}_${userId}_${language}`;
     const cacheRef = doc(db, "codeReviews", cacheKey);
 
-    // Check cache
+    // Check cache — cached reviews are free and don't count against quota
     const cached = await getDoc(cacheRef);
     if (cached.exists()) {
       const data = cached.data();
@@ -30,6 +31,20 @@ export async function POST(req: NextRequest) {
         alternativeApproach: data.alternativeApproach,
         cached: true,
       });
+    }
+
+    // Check plan-based code review quota (only for new reviews)
+    const reviewCheck = await checkAndIncrementUsage(userId, "codeReview");
+    if (!reviewCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: "limit_reached",
+          message: `Code review is not available on the ${reviewCheck.plan} plan. Upgrade to Pro or Premium to unlock AI code reviews.`,
+          plan: reviewCheck.plan,
+          limit: reviewCheck.limit,
+        },
+        { status: 429 }
+      );
     }
 
     // Fetch problem

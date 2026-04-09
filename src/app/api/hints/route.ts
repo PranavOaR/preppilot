@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateHint } from "@/lib/groq/client";
+import { GROQ_MODELS } from "@/lib/groq/models";
 import { buildHintPrompt } from "@/lib/groq/prompts";
 import { getProblemById } from "@/lib/db/problems";
 import {
@@ -12,6 +13,7 @@ import {
 import { awardXP } from "@/lib/xp/calculator";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
+import { checkAndIncrementUsage } from "@/lib/plans/usage";
 
 const XP_COSTS: Record<number, number> = {
   1: 5,
@@ -66,7 +68,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check daily limit
+    // Check plan-based monthly hint limit
+    const hintCheck = await checkAndIncrementUsage(userId, "aiHint");
+    if (!hintCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: "limit_reached",
+          message: `You've used all your AI hints for this month on your ${hintCheck.plan} plan. Upgrade for more hints.`,
+          limit: hintCheck.limit,
+          plan: hintCheck.plan,
+        },
+        { status: 429 }
+      );
+    }
+
+    // Check daily limit (secondary guard)
     const todayCount = await getUserHintsToday(userId);
     if (todayCount >= DAILY_LIMIT) {
       return NextResponse.json(
@@ -106,7 +122,7 @@ export async function POST(req: NextRequest) {
       fromCache = false;
 
       // Cache the hint
-      await setCachedHint(problemId, hintLevel, hintText, "llama-3.3-70b-versatile");
+      await setCachedHint(problemId, hintLevel, hintText, GROQ_MODELS.capable);
     }
 
     // Deduct XP (negative increment)

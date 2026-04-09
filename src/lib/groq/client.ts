@@ -1,4 +1,5 @@
 import Groq from "groq-sdk";
+import { GROQ_MODELS } from "./models";
 
 let _groq: Groq | null = null;
 
@@ -14,7 +15,7 @@ function getGroq(): Groq {
 
 export async function generateHint(prompt: string): Promise<string> {
   const completion = await getGroq().chat.completions.create({
-    model: "llama-3.3-70b-versatile",
+    model: GROQ_MODELS.capable,
     messages: [
       {
         role: "system",
@@ -32,7 +33,7 @@ export async function generateHint(prompt: string): Promise<string> {
 
 export async function generateCodeReview(prompt: string): Promise<string> {
   const completion = await getGroq().chat.completions.create({
-    model: "llama-3.3-70b-versatile",
+    model: GROQ_MODELS.capable,
     messages: [
       {
         role: "system",

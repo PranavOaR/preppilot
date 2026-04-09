@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { buildEvaluationPrompt } from "@/lib/groq/interview-prompts";
+import { GROQ_MODELS } from "@/lib/groq/models";
 import type { InterviewType } from "@/lib/types/interview";
 
 let _groq: Groq | null = null;
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     const prompt = buildEvaluationPrompt(question, transcript, type);
 
     const completion = await getGroq().chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model: GROQ_MODELS.fast,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
       max_tokens: 400,

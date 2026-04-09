@@ -1,11 +1,17 @@
-const API_URL = "https://judge0-ce.p.rapidapi.com";
+const SELF_HOSTED_URL = process.env.JUDGE0_SELF_HOSTED_URL?.replace(/\/$/, "");
+const RAPIDAPI_URL = "https://judge0-ce.p.rapidapi.com";
 
-function getHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "x-rapidapi-host": process.env.JUDGE0_API_HOST || "judge0-ce.p.rapidapi.com",
-    "x-rapidapi-key": process.env.JUDGE0_API_KEY || "",
-  };
+// Use self-hosted GCP instance when JUDGE0_SELF_HOSTED_URL is set; fall back to RapidAPI.
+const API_URL = SELF_HOSTED_URL || RAPIDAPI_URL;
+
+function getHeaders(): Record<string, string> {
+  const base: Record<string, string> = { "Content-Type": "application/json" };
+  if (!SELF_HOSTED_URL) {
+    // RapidAPI requires auth headers; self-hosted has no auth by default.
+    base["x-rapidapi-host"] = process.env.JUDGE0_API_HOST || "judge0-ce.p.rapidapi.com";
+    base["x-rapidapi-key"] = process.env.JUDGE0_API_KEY || "";
+  }
+  return base;
 }
 
 function toBase64(str: string): string {
@@ -30,7 +36,7 @@ interface SubmissionResult {
   memory: number | null;
 }
 
-export async function submitCode(
+async function submitCodeOnce(
   sourceCode: string,
   languageId: number,
   stdin: string,
@@ -61,6 +67,24 @@ export async function submitCode(
     stderr: result.stderr ? fromBase64(result.stderr) : null,
     compile_output: result.compile_output ? fromBase64(result.compile_output) : null,
   };
+}
+
+export async function submitCode(
+  sourceCode: string,
+  languageId: number,
+  stdin: string,
+  expectedOutput?: string,
+  retries = 2
+): Promise<SubmissionResult> {
+  try {
+    return await submitCodeOnce(sourceCode, languageId, stdin, expectedOutput);
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise((r) => setTimeout(r, 1000));
+      return submitCode(sourceCode, languageId, stdin, expectedOutput, retries - 1);
+    }
+    throw err;
+  }
 }
 
 export interface TestCaseResult {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { ProctorWrapper } from "@/components/proctor/ProctorWrapper";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/auth-context";
 import { hasUserJoinedContest, submitContestAnswer } from "@/lib/db/contests";
@@ -197,12 +198,28 @@ export default function ContestTakePage() {
         answer = selectedOption;
         isCorrect = selectedOption === currentProblem.correctAnswer;
       } else {
-        // For DSA in contest mode, we do a simplified check
-        // (Full Judge0 integration would be handled via the API route, but for contest
-        // we record the submission and mark based on a simplified approach)
+        // Run code against test cases via Judge0 using mode:"run" to avoid
+        // burning the user's monthly submit quota for contest practice.
         answer = code;
-        // In a real implementation, this would call Judge0. For now, record the submission.
-        isCorrect = false; // Will be evaluated by Judge0 in production
+        try {
+          const res = await fetch("/api/submissions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              code,
+              language: selectedLang,
+              testCases: currentProblem.testCases,
+              mode: "run",
+            }),
+          });
+          const data = await res.json();
+          if (data.summary) {
+            isCorrect = data.summary.allPassed === true;
+          }
+        } catch {
+          // Judge0 unavailable — record submission as pending (isCorrect stays false)
+          console.warn("Judge0 unavailable; contest DSA submission recorded as pending");
+        }
       }
 
       await submitContestProblem({
@@ -256,11 +273,20 @@ export default function ContestTakePage() {
     );
   }
 
-  const endTime = contest.endTime?.seconds
-    ? new Date(contest.endTime.seconds * 1000)
-    : new Date();
+  if (!contest.endTime?.seconds) {
+    return (
+      <div className="max-w-4xl mx-auto px-6 py-8 text-center space-y-3">
+        <span className="material-symbols-outlined text-error text-5xl">error</span>
+        <h2 className="text-on-surface text-lg font-medium">Contest configuration error</h2>
+        <p className="text-on-surface-variant text-sm">This contest has no end time configured. Contact the organizer.</p>
+      </div>
+    );
+  }
+
+  const endTime = new Date(contest.endTime.seconds * 1000);
 
   return (
+    <ProctorWrapper>
     <div>
       <ContestTimer endTime={endTime} onTimeUp={handleTimeUp} />
 
@@ -459,9 +485,14 @@ export default function ContestTakePage() {
                       (currentProblem.type === "aptitude" && !selectedOption) ||
                       (currentProblem.type === "dsa" && !code.trim())
                     }
-                    className="px-6 py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-50"
+                    className="px-6 py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
                   >
-                    {submitting ? "Submitting..." : "Submit Answer"}
+                    {submitting ? (
+                      <>
+                        <span className="material-symbols-outlined text-[15px] animate-spin">progress_activity</span>
+                        {currentProblem.type === "dsa" ? "Evaluating..." : "Submitting..."}
+                      </>
+                    ) : "Submit Answer"}
                   </button>
                 </div>
               )}
@@ -496,5 +527,6 @@ export default function ContestTakePage() {
         </div>
       </div>
     </div>
+    </ProctorWrapper>
   );
 }

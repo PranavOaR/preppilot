@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { buildFeedbackPrompt } from "@/lib/groq/interview-prompts";
+import { GROQ_MODELS } from "@/lib/groq/models";
 import type { InterviewType, InterviewQA } from "@/lib/types/interview";
 
 let _groq: Groq | null = null;
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
     const prompt = buildFeedbackPrompt(type, targetCompany, qas);
 
     const completion = await getGroq().chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: GROQ_MODELS.capable,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.4,
       max_tokens: 1000,
