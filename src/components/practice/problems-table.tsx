@@ -62,6 +62,9 @@ export function ProblemsTable({ filters }: ProblemsTableProps) {
   useEffect(() => {
     async function fetchProblems() {
       setLoading(true);
+      setProblems([]);
+      setLastDocId(null);
+      setHasMore(false);
       try {
         const result = await getProblems({
           type: filters.type,
@@ -80,7 +83,7 @@ export function ProblemsTable({ filters }: ProblemsTableProps) {
       }
     }
     fetchProblems();
-  }, [filters]);
+  }, [filters.type, filters.difficulty, filters.company, filters.topic]);
 
   async function loadMore() {
     if (!lastDocId) return;

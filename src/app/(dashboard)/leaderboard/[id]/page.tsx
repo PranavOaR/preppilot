@@ -181,7 +181,7 @@ export default function ContestDetailPage() {
   const totalProblems = problems.length;
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
       {/* Back Link */}
       <Link
         href="/leaderboard"
@@ -226,26 +226,28 @@ export default function ContestDetailPage() {
           </div>
         )}
 
-        <div className="p-6 space-y-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary-brand text-[26px]">emoji_events</span>
-                <h1 className="font-serif text-2xl text-on-surface font-medium tracking-tight">
-                  {contest.title}
-                </h1>
-                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${statusBadge.color}`}>
-                  {statusBadge.text}
-                </span>
+        <div className="p-4 sm:p-6 space-y-5">
+          <div className="space-y-2">
+            <div className="flex items-start gap-3 flex-wrap">
+              <span className="material-symbols-outlined text-primary-brand text-[26px] shrink-0">emoji_events</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="font-serif text-xl sm:text-2xl text-on-surface font-medium tracking-tight">
+                    {contest.title}
+                  </h1>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${statusBadge.color}`}>
+                    {statusBadge.text}
+                  </span>
+                </div>
+                <p className="text-on-surface-variant text-sm mt-1">
+                  {contest.description}
+                </p>
               </div>
-              <p className="text-on-surface-variant text-sm ml-[38px]">
-                {contest.description}
-              </p>
             </div>
           </div>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 ml-[38px]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-lg bg-surface-container p-3 text-center">
               <span className="material-symbols-outlined text-[20px] text-primary-brand mb-1 block">quiz</span>
               <p className="text-on-surface font-semibold text-lg">{totalProblems}</p>
@@ -271,7 +273,7 @@ export default function ContestDetailPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3 ml-[38px] pt-1">
+          <div className="flex items-center gap-3 pt-1">
             {(status === "upcoming" || status === "active") && !hasJoined && (
               <button
                 onClick={handleJoin}
@@ -311,10 +313,10 @@ export default function ContestDetailPage() {
 
           <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
             {/* Header */}
-            <div className="grid grid-cols-[1fr_90px_90px_60px] px-5 py-3 border-b border-outline-variant/10">
+            <div className="grid grid-cols-[1fr_70px_50px] sm:grid-cols-[1fr_90px_90px_60px] px-4 sm:px-5 py-3 border-b border-outline-variant/10">
               <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider">Problem</span>
               <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider text-center">Difficulty</span>
-              <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider text-center">Type</span>
+              <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider text-center hidden sm:block">Type</span>
               <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider text-center">Status</span>
             </div>
 
@@ -328,11 +330,11 @@ export default function ContestDetailPage() {
               return (
                 <div
                   key={problem.id}
-                  className={`grid grid-cols-[1fr_90px_90px_60px] items-center px-5 py-3.5 border-b border-outline-variant/5 transition-colors hover:bg-surface-container ${
+                  className={`grid grid-cols-[1fr_70px_50px] sm:grid-cols-[1fr_90px_90px_60px] items-center px-4 sm:px-5 py-3.5 border-b border-outline-variant/5 transition-colors hover:bg-surface-container ${
                     solved ? "bg-green-500/[0.03]" : ""
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <span className="text-on-surface-variant text-xs font-mono w-5 shrink-0">{i + 1}</span>
                     <Link
                       href={`/practice/${problem.slug}`}
@@ -344,7 +346,7 @@ export default function ContestDetailPage() {
                   <span className={`text-xs font-medium text-center capitalize ${diffColors[problem.difficulty] || "text-on-surface-variant"}`}>
                     {problem.difficulty}
                   </span>
-                  <span className="text-xs text-on-surface-variant text-center capitalize">
+                  <span className="text-xs text-on-surface-variant text-center capitalize hidden sm:block">
                     {problem.type}
                   </span>
                   <div className="flex justify-center">

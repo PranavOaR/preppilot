@@ -70,6 +70,7 @@ export default function ProblemPage() {
     mode: "run" | "submit";
   } | null>(null);
   const [activeTab, setActiveTab] = useState<"editor" | "results">("editor");
+  const [mobilePanelTab, setMobilePanelTab] = useState<"description" | "code">("description");
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [lastSubmit, setLastSubmit] = useState<{
     code: string;
@@ -328,29 +329,56 @@ export default function ProblemPage() {
 
   // ─── DSA Code Editor Layout ───
   return (
-    <main className="max-w-[1400px] mx-auto px-4 py-4">
+    <main className="max-w-[1400px] mx-auto px-2 sm:px-4 py-3 sm:py-4">
       {/* Back + Title */}
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex items-center gap-3 mb-3 sm:mb-4 px-2 sm:px-0">
         <Link
           href="/practice"
-          className="p-2 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors"
+          className="p-2 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors shrink-0"
         >
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
         </Link>
-        <div className="flex items-center gap-3">
-          <h1 className="text-on-surface text-lg font-medium">{problem.title}</h1>
-          <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${difficultyStyles[problem.difficulty]}`}>
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <h1 className="text-on-surface text-base sm:text-lg font-medium truncate">{problem.title}</h1>
+          <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize shrink-0 ${difficultyStyles[problem.difficulty]}`}>
             {problem.difficulty}
           </span>
-          <span className="text-outline text-xs">{problem.xpReward} XP</span>
+          <span className="text-outline text-xs shrink-0">{problem.xpReward} XP</span>
         </div>
+      </div>
+
+      {/* Mobile Panel Switcher */}
+      <div className="flex lg:hidden items-center gap-1 mb-2 px-2 sm:px-0">
+        <button
+          onClick={() => setMobilePanelTab("description")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+            mobilePanelTab === "description"
+              ? "bg-surface-container-high text-on-surface"
+              : "text-on-surface-variant hover:bg-surface-container"
+          }`}
+        >
+          Description
+        </button>
+        <button
+          onClick={() => setMobilePanelTab("code")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+            mobilePanelTab === "code"
+              ? "bg-surface-container-high text-on-surface"
+              : "text-on-surface-variant hover:bg-surface-container"
+          }`}
+        >
+          Code Editor
+        </button>
       </div>
 
       {/* Split Layout */}
       <div className="rounded-lg bg-surface-container subtle-border overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-2" style={{ minHeight: "calc(100vh - 140px)" }}>
+        <div className="lg:grid lg:grid-cols-2" style={{ minHeight: "calc(100vh - 140px)" }}>
           {/* Left: Problem Description */}
-          <div className="p-6 space-y-5 border-r border-outline-variant/10 overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
+          <div
+            className={`p-4 sm:p-6 space-y-5 border-r border-outline-variant/10 overflow-y-auto ${mobilePanelTab === "description" ? "block" : "hidden lg:block"}`}
+            style={{ maxHeight: "calc(100vh - 140px)" }}
+          >
             <div className="space-y-3">
               <h4 className="text-on-surface text-sm font-medium uppercase tracking-wider">
                 Problem Description
@@ -482,7 +510,10 @@ export default function ProblemPage() {
           </div>
 
           {/* Right: Editor + Results */}
-          <div className="flex flex-col" style={{ maxHeight: "calc(100vh - 140px)" }}>
+          <div
+            className={`flex flex-col ${mobilePanelTab === "code" ? "block" : "hidden lg:flex"}`}
+            style={{ maxHeight: "calc(100vh - 140px)" }}
+          >
             {/* Language Tabs */}
             <div className="flex items-center justify-between px-4 py-2 bg-surface-container border-b border-outline-variant/10 shrink-0">
               <div className="flex items-center gap-1">

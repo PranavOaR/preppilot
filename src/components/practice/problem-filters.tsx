@@ -54,7 +54,7 @@ export function ProblemFilters({ filters, onFilterChange }: ProblemFiltersProps)
       </div>
 
       {/* Difficulty + Company Filters */}
-      <div className="flex items-center gap-4 flex-wrap">
+      <div className="flex items-center gap-3 overflow-x-auto scrollbar-none pb-1 flex-nowrap sm:flex-wrap">
         <div className="flex items-center gap-2">
           {difficulties.map((d) => (
             <button

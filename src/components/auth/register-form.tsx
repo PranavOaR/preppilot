@@ -70,8 +70,18 @@ export function RegisterForm() {
       return;
     }
 
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (!/[A-Z]/.test(form.password)) {
+      setError("Password must contain at least one uppercase letter.");
+      return;
+    }
+
+    if (!/[0-9]/.test(form.password)) {
+      setError("Password must contain at least one number.");
       return;
     }
 
@@ -193,13 +203,27 @@ export function RegisterForm() {
               id="reg-password"
               name="password"
               type="password"
-              placeholder="••••••••"
+              placeholder="Min 8 chars, 1 upper, 1 number"
               value={form.password}
               onChange={(e) => updateField("password", e.target.value)}
               required
               autoComplete="new-password"
               className="h-10 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40"
             />
+            {form.password.length > 0 && (
+              <div className="flex gap-1 mt-1">
+                {[
+                  form.password.length >= 8,
+                  /[A-Z]/.test(form.password),
+                  /[0-9]/.test(form.password),
+                ].map((met, i) => (
+                  <div
+                    key={i}
+                    className={`h-1 flex-1 rounded-full transition-colors ${met ? "bg-green-400" : "bg-surface-container-high"}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="reg-confirm" className="text-on-surface-variant text-sm">Confirm</Label>

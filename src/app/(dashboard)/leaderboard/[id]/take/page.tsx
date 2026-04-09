@@ -305,9 +305,42 @@ export default function ContestTakePage() {
         </div>
       )}
 
+      {/* Mobile: horizontal scrollable problem tabs */}
+      <div className="md:hidden border-b border-outline-variant/10 bg-surface-container-lowest px-3 py-2">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1">
+          <span className="text-xs text-on-surface-variant shrink-0 mr-1">
+            {correctIds.size}/{problems.length}
+          </span>
+          {problems.map((p, i) => {
+            const isSolved = correctIds.has(p.id);
+            const isSubmitted = submittedIds.has(p.id);
+            const isCurrent = i === currentIndex;
+            return (
+              <button
+                key={p.id}
+                onClick={() => !timeUp && setCurrentIndex(i)}
+                disabled={timeUp}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-colors ${
+                  isCurrent
+                    ? "bg-primary-container/20 text-primary-brand font-medium"
+                    : "bg-surface-container text-on-surface-variant"
+                } ${timeUp ? "opacity-50" : ""}`}
+              >
+                {isSolved ? (
+                  <span className="material-symbols-outlined text-[12px] text-green-400">check_circle</span>
+                ) : isSubmitted ? (
+                  <span className="material-symbols-outlined text-[12px] text-red-400">cancel</span>
+                ) : null}
+                {i + 1}. {p.title.length > 12 ? p.title.slice(0, 12) + "…" : p.title}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="flex min-h-[calc(100vh-57px-44px)]">
-        {/* Problem Sidebar */}
-        <div className="w-56 shrink-0 border-r border-outline-variant/10 bg-surface-container-lowest p-3 space-y-1">
+        {/* Problem Sidebar — desktop only */}
+        <div className="hidden md:block w-56 shrink-0 border-r border-outline-variant/10 bg-surface-container-lowest p-3 space-y-1">
           <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
             Problems ({correctIds.size}/{problems.length})
           </p>
@@ -340,7 +373,7 @@ export default function ContestTakePage() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-3 sm:p-6 overflow-auto">
           {currentProblem && (
             <div className="max-w-4xl space-y-6">
               {/* Problem Header */}

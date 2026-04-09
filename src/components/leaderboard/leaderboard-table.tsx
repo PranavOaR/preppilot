@@ -41,7 +41,7 @@ export function LeaderboardTable({ participants, currentUserId }: LeaderboardTab
   return (
     <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-[60px_1fr_80px_100px] px-5 py-3 border-b border-outline-variant/10">
+      <div className="grid grid-cols-[44px_1fr_60px_80px] sm:grid-cols-[60px_1fr_80px_100px] px-4 sm:px-5 py-3 border-b border-outline-variant/10">
         <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider">
           Rank
         </span>
@@ -65,7 +65,7 @@ export function LeaderboardTable({ participants, currentUserId }: LeaderboardTab
         return (
           <div
             key={participant.id}
-            className={`grid grid-cols-[60px_1fr_80px_100px] items-center px-5 py-4 border-b border-outline-variant/5 transition-colors ${
+            className={`grid grid-cols-[44px_1fr_60px_80px] sm:grid-cols-[60px_1fr_80px_100px] items-center px-4 sm:px-5 py-3 sm:py-4 border-b border-outline-variant/5 transition-colors ${
               isCurrentUser
                 ? "bg-primary-container/10 border-l-2 border-l-primary-brand"
                 : "hover:bg-surface-container"
