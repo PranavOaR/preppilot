@@ -15,3 +15,11 @@ export async function updateUser(uid: string, data: Partial<UserProfile>) {
     updatedAt: serverTimestamp(),
   });
 }
+
+export async function flagUserAsUnethical(uid: string) {
+  const userRef = doc(db, "users", uid);
+  await updateDoc(userRef, {
+    isUnethical: true,
+    updatedAt: serverTimestamp(),
+  });
+}
