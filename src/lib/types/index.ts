@@ -1,4 +1,5 @@
 import type { Timestamp } from "firebase/firestore";
+import type { PlanTier, MonthlyUsage } from "@/lib/types/plans";
 
 export interface UserProfile {
   username: string;
@@ -11,6 +12,10 @@ export interface UserProfile {
   year: number;
   semester: number;
   role: "user" | "admin";
+  isUnethical?: boolean;
+  plan?: PlanTier;
+  planExpiresAt?: number;
+  usageThisMonth?: MonthlyUsage;
   xp: number;
   currentStreak: number;
   longestStreak: number;
