@@ -13,6 +13,7 @@ export interface UserProfile {
   semester: number;
   role: "user" | "admin";
   isUnethical?: boolean;
+  onboardingCompleted?: boolean;
   plan?: PlanTier;
   planExpiresAt?: number;
   usageThisMonth?: MonthlyUsage;

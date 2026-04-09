@@ -26,6 +26,28 @@ function formatExpiry(ts: number | undefined | null): string {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function exportCSV(users: UserWithId[]) {
+  const header = ["username", "email", "university", "xp", "plan", "planExpiry", "role", "flagged"];
+  const rows = users.map((u) => [
+    u.username || "",
+    u.email || "",
+    u.university || "",
+    String(u.xp || 0),
+    u.plan || "free",
+    u.planExpiresAt ? new Date(u.planExpiresAt).toISOString().split("T")[0] : "",
+    u.role || "user",
+    u.isUnethical ? "yes" : "no",
+  ]);
+  const csv = [header, ...rows].map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `preppilot-users-${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminUsersPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserWithId[]>([]);
@@ -34,8 +56,10 @@ export default function AdminUsersPage() {
   const [filter, setFilter] = useState<"all" | "flagged" | PlanTier>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  // Selection for bulk actions
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   // Grant plan modal state
-  const [grantTarget, setGrantTarget] = useState<UserWithId | null>(null);
+  const [grantTarget, setGrantTarget] = useState<UserWithId | "bulk" | null>(null);
   const [grantPlan, setGrantPlan] = useState<PlanTier>("premium");
   const [grantExpiry, setGrantExpiry] = useState<"1y" | "never">("1y");
 
@@ -78,21 +102,43 @@ export default function AdminUsersPage() {
     if (!grantTarget) return;
     const expiresAt =
       grantExpiry === "1y" ? Date.now() + 365 * 24 * 60 * 60 * 1000 : null;
-    setUpdatingId(grantTarget.id);
+
+    const targetIds = grantTarget === "bulk"
+      ? Array.from(selected)
+      : [grantTarget.id];
+
+    setUpdatingId("bulk");
     try {
-      await updateUserPlan(grantTarget.id, grantPlan, expiresAt);
+      await Promise.all(targetIds.map((id) => updateUserPlan(id, grantPlan, expiresAt)));
       setUsers((prev) =>
         prev.map((u) =>
-          u.id === grantTarget.id
+          targetIds.includes(u.id)
             ? { ...u, plan: grantPlan, planExpiresAt: expiresAt ?? undefined }
             : u
         )
       );
+      setSelected(new Set());
       setGrantTarget(null);
     } catch (err) {
       console.error("Failed to grant plan:", err);
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map((u) => u.id)));
     }
   }
 
@@ -189,10 +235,53 @@ export default function AdminUsersPage() {
           </span>
         </div>
       ) : (
+        {/* Floating bulk action bar */}
+        {selected.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl bg-surface subtle-border shadow-lg">
+            <span className="text-on-surface text-sm font-medium">{selected.size} selected</span>
+            <button
+              onClick={() => { setGrantTarget("bulk"); setGrantPlan("premium"); setGrantExpiry("1y"); }}
+              className="px-4 py-2 rounded-lg gradient-primary text-on-primary text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              Grant Plan
+            </button>
+            <button
+              onClick={() => exportCSV(users.filter((u) => selected.has(u.id)))}
+              className="px-4 py-2 rounded-lg bg-surface-container-high text-on-surface text-xs font-medium hover:bg-surface-container-highest transition-colors"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-on-surface-variant text-xs hover:text-on-surface transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant/10">
+            <span className="text-on-surface-variant text-xs">{filtered.length} users shown</span>
+            <button
+              onClick={() => exportCSV(filtered)}
+              className="flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-on-surface transition-colors"
+            >
+              <span className="material-symbols-outlined text-[14px]">download</span>
+              Export CSV
+            </button>
+          </div>
           <table className="w-full">
             <thead>
               <tr className="border-b border-outline-variant/10">
+                <th className="px-4 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && selected.size === filtered.length}
+                    onChange={toggleSelectAll}
+                    className="accent-primary-brand"
+                  />
+                </th>
                 <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">User</th>
                 <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">University</th>
                 <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">XP</th>
@@ -215,11 +304,17 @@ export default function AdminUsersPage() {
                       key={u.id}
                       className={`border-b border-outline-variant/5 hover:bg-surface-container transition-colors cursor-pointer ${
                         u.isUnethical ? "bg-red-500/5" : ""
-                      }`}
-                      onClick={() =>
-                        setExpandedUserId(isExpanded ? null : u.id)
-                      }
+                      } ${selected.has(u.id) ? "bg-primary-container/5" : ""}`}
+                      onClick={() => setExpandedUserId(isExpanded ? null : u.id)}
                     >
+                      <td className="px-4 py-3 w-8" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(u.id)}
+                          onChange={() => toggleSelect(u.id)}
+                          className="accent-primary-brand"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-primary-container/20 flex items-center justify-center shrink-0">
@@ -265,7 +360,7 @@ export default function AdminUsersPage() {
                         <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => {
-                              setGrantTarget(u);
+                              setGrantTarget(u as UserWithId);
                               setGrantPlan(plan === "free" ? "premium" : plan);
                               setGrantExpiry("1y");
                             }}
@@ -300,7 +395,7 @@ export default function AdminUsersPage() {
                     {/* Expanded usage row */}
                     {isExpanded && (
                       <tr key={`${u.id}-expanded`} className="border-b border-outline-variant/5 bg-surface-container/50">
-                        <td colSpan={7} className="px-6 py-4">
+                        <td colSpan={8} className="px-6 py-4">
                           <p className="text-on-surface-variant text-xs uppercase tracking-wider mb-3 font-medium">
                             This Month&apos;s Usage
                           </p>
@@ -349,7 +444,7 @@ export default function AdminUsersPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-on-surface-variant text-sm">
+                  <td colSpan={8} className="px-4 py-8 text-center text-on-surface-variant text-sm">
                     No users found.
                   </td>
                 </tr>
@@ -365,12 +460,20 @@ export default function AdminUsersPage() {
           <div className="bg-surface rounded-xl p-6 w-full max-w-sm space-y-5 subtle-border">
             <div>
               <h2 className="text-on-surface font-semibold text-lg">Grant Plan Access</h2>
-              <p className="text-on-surface-variant text-sm mt-1">
-                User: <span className="text-on-surface font-medium">{grantTarget.username || grantTarget.email}</span>
-              </p>
-              <p className="text-on-surface-variant text-xs mt-0.5">
-                Current plan: <span className="uppercase font-mono">{grantTarget.plan || "free"}</span>
-              </p>
+              {grantTarget === "bulk" ? (
+                <p className="text-on-surface-variant text-sm mt-1">
+                  Applying to <span className="text-on-surface font-medium">{selected.size} selected users</span>
+                </p>
+              ) : (
+                <>
+                  <p className="text-on-surface-variant text-sm mt-1">
+                    User: <span className="text-on-surface font-medium">{grantTarget.username || grantTarget.email}</span>
+                  </p>
+                  <p className="text-on-surface-variant text-xs mt-0.5">
+                    Current plan: <span className="uppercase font-mono">{grantTarget.plan || "free"}</span>
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -428,10 +531,10 @@ export default function AdminUsersPage() {
               </button>
               <button
                 onClick={handleGrantPlan}
-                disabled={updatingId === grantTarget.id}
+                disabled={updatingId === "bulk"}
                 className="flex-1 py-2.5 rounded-lg text-sm gradient-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-50"
               >
-                {updatingId === grantTarget.id ? "Saving..." : "Grant Access"}
+                {updatingId === "bulk" ? "Saving..." : "Grant Access"}
               </button>
             </div>
           </div>

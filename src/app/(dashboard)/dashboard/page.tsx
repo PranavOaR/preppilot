@@ -9,6 +9,7 @@ import { getUserProgress } from "@/lib/db/progress";
 import { getContests } from "@/lib/db/contests";
 import type { Problem, Contest } from "@/lib/types";
 import { PLAN_LIMITS } from "@/lib/types/plans";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 
 interface SubmissionItem {
   id: string;
@@ -174,6 +175,10 @@ export default function DashboardPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      {/* Onboarding for new users */}
+      {profile && !profile.onboardingCompleted && !authLoading && (
+        <OnboardingModal />
+      )}
       {/* Welcome + Daily Progress */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

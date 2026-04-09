@@ -298,6 +298,266 @@ function wrapCppSolution(code: string): string | null {
   return codeWithStructs + main;
 }
 
+/**
+ * Auto-wrap a LeetCode-style Python Solution class into a runnable script.
+ * Adds boilerplate: __future__ annotations, ListNode/TreeNode definitions,
+ * input parsing helpers, and a main block that reads stdin + prints output.
+ */
+function wrapPythonSolution(code: string): string | null {
+  if (!/class\s+Solution/.test(code)) return null;
+  if (/__name__\s*==/.test(code)) return null; // already has __main__ block
+
+  // Extract first public non-dunder method signature
+  const sigMatch = code.match(
+    /def\s+([a-z]\w*)\s*\(\s*self(?:\s*,\s*([^)]*?))?\s*\)\s*(?:->\s*([^\n:]+?))?:/
+  );
+  if (!sigMatch) return null;
+
+  const method = sigMatch[1];
+  const paramsRaw = sigMatch[2] || "";
+  const retAnnotation = (sigMatch[3] || "").trim();
+
+  // Split param string respecting brackets
+  const paramParts: string[] = [];
+  let depth = 0, cur = "";
+  for (const ch of paramsRaw + ",") {
+    if (ch === "," && depth === 0) { if (cur.trim()) paramParts.push(cur.trim()); cur = ""; }
+    else { if (ch === "[" || ch === "(") depth++; if (ch === "]" || ch === ")") depth--; cur += ch; }
+  }
+
+  const params: { name: string; hint: string }[] = [];
+  for (const part of paramParts) {
+    if (!part) continue;
+    const colonIdx = part.indexOf(":");
+    const name = (colonIdx >= 0 ? part.slice(0, colonIdx) : part).split("=")[0].trim();
+    const hint = (colonIdx >= 0 ? part.slice(colonIdx + 1) : "").split("=")[0].trim()
+      .toLowerCase().replace(/\s+/g, "");
+    if (name) params.push({ name, hint });
+  }
+
+  const retHint = retAnnotation.toLowerCase().replace(/\s+/g, "");
+
+  // Input reading per parameter
+  const readLines: string[] = [];
+  const callArgs: string[] = [];
+  for (let i = 0; i < params.length; i++) {
+    const { hint } = params[i];
+    const v = `_a${i}`;
+    callArgs.push(v);
+    const clean = hint.replace(/optional\[/g, "").replace(/\]$/, "");
+    if (clean.includes("listnode")) {
+      readLines.push(`    ${v}=_ll(json.loads(lines[${i}]))`);
+    } else if (clean.includes("treenode")) {
+      readLines.push(`    ${v}=_tree(json.loads(lines[${i}]))`);
+    } else if (clean === "int" || clean === "long") {
+      readLines.push(`    ${v}=int(lines[${i}])`);
+    } else if (clean === "float" || clean === "double") {
+      readLines.push(`    ${v}=float(lines[${i}])`);
+    } else if (clean === "bool") {
+      readLines.push(`    ${v}=(lines[${i}].strip().lower()=='true')`);
+    } else if (clean === "str" || clean === "string") {
+      readLines.push(`    ${v}=lines[${i}].strip().strip('"')`);
+    } else {
+      // list[int], list[list[int]], etc. — JSON-parseable
+      readLines.push(`    ${v}=json.loads(lines[${i}])`);
+    }
+  }
+
+  // Output printing
+  const cleanRet = retHint.replace(/optional\[/g, "").replace(/\]$/, "");
+  let callLine: string;
+  if (!cleanRet || cleanRet === "none") {
+    // void: print first list/array param (modified in-place)
+    const firstList = callArgs.find((_, i) => params[i].hint.includes("list") || params[i].hint.includes("[]")) || callArgs[0] || "_a0";
+    callLine = `    sol.${method}(${callArgs.join(",")})\n    print(_fmt(${firstList}))`;
+  } else if (cleanRet.includes("listnode")) {
+    callLine = `    _r=sol.${method}(${callArgs.join(",")})\n    print(_fmt(_ll2a(_r)))`;
+  } else if (cleanRet.includes("treenode")) {
+    callLine = `    _r=sol.${method}(${callArgs.join(",")})\n    print(_fmt(_tree2a(_r)))`;
+  } else if (cleanRet === "bool") {
+    callLine = `    _r=sol.${method}(${callArgs.join(",")})\n    print('true' if _r else 'false')`;
+  } else {
+    callLine = `    _r=sol.${method}(${callArgs.join(",")})\n    print(_fmt(_r))`;
+  }
+
+  const header = `from __future__ import annotations
+from typing import Optional,List,Dict,Tuple,Any
+import sys,json
+
+class ListNode:
+    def __init__(self,val=0,next=None):self.val=val;self.next=next
+class TreeNode:
+    def __init__(self,val=0,left=None,right=None):self.val=val;self.left=left;self.right=right
+
+def _ll(a):
+    if not a:return None
+    h=ListNode(a[0]);c=h
+    for v in a[1:]:c.next=ListNode(v);c=c.next
+    return h
+def _ll2a(n):
+    r=[]
+    while n:r.append(n.val);n=n.next
+    return r
+def _tree(a):
+    if not a or a[0] is None:return None
+    root=TreeNode(a[0]);q=[root];i=1
+    while q and i<len(a):
+        nd=q.pop(0)
+        if i<len(a) and a[i] is not None:nd.left=TreeNode(a[i]);q.append(nd.left)
+        i+=1
+        if i<len(a) and a[i] is not None:nd.right=TreeNode(a[i]);q.append(nd.right)
+        i+=1
+    return root
+def _tree2a(root):
+    if not root:return[]
+    r=[];q=[root]
+    while q:
+        nd=q.pop(0)
+        if nd:r.append(nd.val);q.append(nd.left);q.append(nd.right)
+        else:r.append(None)
+    while r and r[-1] is None:r.pop()
+    return r
+def _fmt(v):
+    if v is None:return'null'
+    if isinstance(v,bool):return'true'if v else'false'
+    if isinstance(v,list):return'['+','.join(_fmt(x)for x in v)+']'
+    if isinstance(v,str):return v
+    return str(v)
+
+`;
+
+  const footer = `
+
+if __name__=='__main__':
+    sol=Solution()
+    lines=[l.strip()for l in sys.stdin.read().strip().split('\\n')if l.strip()]
+${readLines.join("\n")}
+${callLine}
+`;
+
+  return header + code + footer;
+}
+
+/**
+ * Auto-wrap a LeetCode-style Java Solution class into a runnable Main class.
+ * Adds ListNode/TreeNode structs, parsing helpers, and a main() that reads
+ * stdin and calls the solution method.
+ */
+function wrapJavaSolution(code: string): string | null {
+  if (!/class\s+Solution/.test(code)) return null;
+  if (/public\s+static\s+void\s+main/.test(code)) return null;
+  if (/public\s+class\s+Main/.test(code)) return null;
+
+  // Extract first public non-constructor method
+  const sigMatch = code.match(
+    /public\s+([\w\[\]<>,\s]+?)\s+(\w+)\s*\(([^)]*)\)\s*\{/
+  );
+  if (!sigMatch) return null;
+
+  const retType = sigMatch[1].trim().replace(/\s+/g, " ");
+  const method = sigMatch[2].trim();
+  const paramsStr = sigMatch[3].trim();
+  if (method === "Solution") return null;
+
+  interface JP { type: string; name: string }
+  const params: JP[] = [];
+  if (paramsStr) {
+    for (const raw of paramsStr.split(",")) {
+      const t = raw.trim();
+      const nm = t.match(/(\w+)\s*$/)?.[1];
+      if (!nm) return null;
+      const typ = t.slice(0, t.lastIndexOf(nm)).trim();
+      params.push({ type: typ, name: nm });
+    }
+  }
+
+  // Generate input reading per parameter
+  const readings: string[] = [];
+  const args: string[] = [];
+  for (const { type, name } of params) {
+    const v = `_${name}`;
+    args.push(v);
+    if (type === "int") {
+      readings.push(`int ${v}=Integer.parseInt(sc.nextLine().trim());`);
+    } else if (type === "long") {
+      readings.push(`long ${v}=Long.parseLong(sc.nextLine().trim());`);
+    } else if (type === "boolean") {
+      readings.push(`boolean ${v}=sc.nextLine().trim().equals("true");`);
+    } else if (type === "String") {
+      readings.push(`String ${v}=sc.nextLine().trim().replaceAll("^\"|\"$","");`);
+    } else if (type === "int[]") {
+      readings.push(`int[] ${v}=_ia(sc.nextLine().trim());`);
+    } else if (type === "int[][]") {
+      readings.push(`int[][] ${v}=_ia2(sc.nextLine().trim());`);
+    } else if (type === "char[][]") {
+      readings.push(`char[][] ${v}=_ca2(sc.nextLine().trim());`);
+    } else if (type === "String[]") {
+      readings.push(`String[] ${v}=_sa(sc.nextLine().trim());`);
+    } else if (type === "ListNode") {
+      readings.push(`ListNode ${v}=_bl(_ia(sc.nextLine().trim()));`);
+    } else if (type === "TreeNode") {
+      readings.push(`TreeNode ${v}=_bt(sc.nextLine().trim());`);
+    } else if (type === "List<List<Integer>>") {
+      readings.push(`List<List<Integer>> ${v}=_ila2(sc.nextLine().trim());`);
+    } else {
+      return null; // unsupported type → fall back gracefully
+    }
+  }
+
+  // Generate output printing
+  let printExpr: string;
+  if (retType === "int" || retType === "long") {
+    printExpr = `System.out.println(sol.${method}(${args.join(",")}));`;
+  } else if (retType === "boolean") {
+    printExpr = `System.out.println(sol.${method}(${args.join(",")})?"true":"false");`;
+  } else if (retType === "String") {
+    printExpr = `System.out.println(sol.${method}(${args.join(",")}));`;
+  } else if (retType === "int[]") {
+    printExpr = `{int[]_r=sol.${method}(${args.join(",")});StringBuilder _s=new StringBuilder("[");for(int _i=0;_i<_r.length;_i++){if(_i>0)_s.append(",");_s.append(_r[_i]);}System.out.println(_s.append("]"));}`;
+  } else if (retType === "int[][]") {
+    printExpr = `{int[][]_r=sol.${method}(${args.join(",")});StringBuilder _s=new StringBuilder("[");for(int _i=0;_i<_r.length;_i++){_s.append("[");for(int _j=0;_j<_r[_i].length;_j++){if(_j>0)_s.append(",");_s.append(_r[_i][_j]);}if(_i<_r.length-1)_s.append(",]");else _s.append("]");}System.out.println(_s.append("]"));}`;
+  } else if (retType === "List<Integer>" || retType === "List<String>") {
+    printExpr = `{var _r=sol.${method}(${args.join(",")});System.out.println("["+String.join(",",_r.stream().map(String::valueOf).toArray(String[]::new))+"]");}`;
+  } else if (retType === "List<List<Integer>>") {
+    printExpr = `{var _r=sol.${method}(${args.join(",")});StringBuilder _s=new StringBuilder("[");for(int _i=0;_i<_r.size();_i++){_s.append("[");for(int _j=0;_j<_r.get(_i).size();_j++){if(_j>0)_s.append(",");_s.append(_r.get(_i).get(_j));}if(_i<_r.size()-1)_s.append(",]");else _s.append("]");}System.out.println(_s.append("]"));}`;
+  } else if (retType === "ListNode") {
+    printExpr = `{ListNode _r=sol.${method}(${args.join(",")});StringBuilder _s=new StringBuilder("[");boolean _f=true;while(_r!=null){if(!_f)_s.append(",");_s.append(_r.val);_f=false;_r=_r.next;}System.out.println(_s.append("]"));}`;
+  } else if (retType === "TreeNode") {
+    printExpr = `System.out.println(_ts(sol.${method}(${args.join(",")})));`;
+  } else if (retType === "void") {
+    // Print first array param (modified in-place)
+    const arr = params.find(p => p.type.includes("[]"));
+    if (arr) {
+      const v = `_${arr.name}`;
+      printExpr = `sol.${method}(${args.join(",")});{StringBuilder _s=new StringBuilder("[");for(int _i=0;_i<${v}.length;_i++){if(_i>0)_s.append(",");_s.append(${v}[_i]);}System.out.println(_s.append("]"));}`;
+    } else {
+      printExpr = `sol.${method}(${args.join(",")});`;
+    }
+  } else {
+    return null;
+  }
+
+  return `import java.util.*;
+import java.util.stream.*;
+
+class ListNode{int val;ListNode next;ListNode(){}ListNode(int v){val=v;}ListNode(int v,ListNode n){val=v;next=n;}}
+class TreeNode{int val;TreeNode left,right;TreeNode(){}TreeNode(int v){val=v;}TreeNode(int v,TreeNode l,TreeNode r){val=v;left=l;right=r;}}
+
+${code}
+
+public class Main{
+static int[]_ia(String s){s=s.trim();if(s.equals("[]"))return new int[0];s=s.substring(1,s.length()-1);String[]p=s.split(",");int[]a=new int[p.length];for(int i=0;i<p.length;i++)a[i]=Integer.parseInt(p[i].trim());return a;}
+static int[][]_ia2(String s){s=s.trim();if(s.equals("[]"))return new int[0][];List<int[]>r=new ArrayList<>();int d=0,st=-1;for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c=='['){d++;if(d==2)st=i;}else if(c==']'){d--;if(d==1&&st!=-1){r.add(_ia(s.substring(st,i+1)));st=-1;}}}return r.toArray(new int[0][]);}
+static char[][]_ca2(String s){int[][]t=_ia2(s);char[][]r=new char[t.length][];for(int i=0;i<t.length;i++){r[i]=new char[t[i].length];for(int j=0;j<t[i].length;j++)r[i][j]=(char)('0'+t[i][j]);}return r;}
+static String[]_sa(String s){s=s.trim();if(s.equals("[]"))return new String[0];s=s.substring(1,s.length()-1);String[]p=s.split(",");for(int i=0;i<p.length;i++)p[i]=p[i].trim().replaceAll("^\"|\"$","");return p;}
+static ListNode _bl(int[]a){if(a.length==0)return null;ListNode h=new ListNode(a[0]),c=h;for(int i=1;i<a.length;i++){c.next=new ListNode(a[i]);c=c.next;}return h;}
+static TreeNode _bt(String s){s=s.trim();if(s.equals("[]"))return null;s=s.substring(1,s.length()-1);String[]p=s.split(",");if(p[0].trim().equals("null"))return null;TreeNode root=new TreeNode(Integer.parseInt(p[0].trim()));Queue<TreeNode>q=new LinkedList<>();q.add(root);int i=1;while(!q.isEmpty()&&i<p.length){TreeNode nd=q.poll();if(i<p.length&&!p[i].trim().equals("null")){nd.left=new TreeNode(Integer.parseInt(p[i].trim()));q.add(nd.left);}i++;if(i<p.length&&!p[i].trim().equals("null")){nd.right=new TreeNode(Integer.parseInt(p[i].trim()));q.add(nd.right);}i++;}return root;}
+static String _ts(TreeNode root){if(root==null)return"[]";List<String>r=new ArrayList<>();Queue<TreeNode>q=new LinkedList<>();q.add(root);while(!q.isEmpty()){TreeNode nd=q.poll();if(nd!=null){r.add(String.valueOf(nd.val));q.add(nd.left);q.add(nd.right);}else r.add("null");}while(!r.isEmpty()&&r.get(r.size()-1).equals("null"))r.remove(r.size()-1);return"["+String.join(",",r)+"]";}
+static List<List<Integer>>_ila2(String s){List<List<Integer>>res=new ArrayList<>();int d=0,st=-1;for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c=='['){d++;if(d==2)st=i;}else if(c==']'){d--;if(d==1&&st!=-1){List<Integer>inner=new ArrayList<>();for(int x:_ia(s.substring(st,i+1)))inner.add(x);res.add(inner);st=-1;}}}return res;}
+public static void main(String[]args){Scanner sc=new Scanner(System.in);Solution sol=new Solution();${readings.join("")}${printExpr}}
+}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -317,12 +577,27 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Unsupported language" }, { status: 400 });
     }
 
-    // Prepend standard headers for C/C++ if missing
     let processedCode = code;
-    if (language === "cpp" && !code.includes("#include")) {
-      processedCode = `#include <bits/stdc++.h>\nusing namespace std;\n\n${code}`;
-    } else if (language === "c" && !code.includes("#include")) {
-      processedCode = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <math.h>\n\n${code}`;
+
+    // ── Python: add __future__ + wrap Solution class ──────────────────────
+    if (language === "python") {
+      if (!/class\s+Solution/.test(code)) {
+        // Raw Python (user wrote their own main) — just add __future__ for safety
+        if (!code.includes("from __future__")) {
+          processedCode = "from __future__ import annotations\n" + code;
+        }
+      } else if (!/__name__\s*==/.test(code)) {
+        // LeetCode-style Solution class without __main__ block — auto-wrap
+        const wrapped = wrapPythonSolution(code);
+        processedCode = wrapped ?? ("from __future__ import annotations\n" + code);
+      }
+    }
+
+    // ── C/C++: add standard headers ───────────────────────────────────────
+    if (language === "cpp" && !processedCode.includes("#include")) {
+      processedCode = `#include <bits/stdc++.h>\nusing namespace std;\n\n${processedCode}`;
+    } else if (language === "c" && !processedCode.includes("#include")) {
+      processedCode = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <math.h>\n\n${processedCode}`;
     }
 
     const casesToRun =
@@ -330,48 +605,44 @@ export async function POST(request: NextRequest) {
         ? testCases.filter((tc) => !tc.isHidden)
         : testCases;
 
-    // C++: auto-wrap LeetCode Solution class into a complete program
+    // ── C++: auto-wrap LeetCode Solution class ────────────────────────────
     if (language === "cpp" && !/\bint\s+main\b/.test(processedCode)) {
       const wrapped = wrapCppSolution(processedCode);
       if (wrapped) {
         processedCode = wrapped;
       } else {
-        const hint =
-          "Could not auto-wrap this C++ solution. Try switching to Python — it works automatically with all problem types.";
+        const hint = "Could not auto-wrap this C++ solution. Try switching to Python.";
         const stubResults = casesToRun.map((tc) => ({
-          input: tc.input,
-          expectedOutput: tc.expectedOutput,
-          actualOutput: "",
-          passed: false,
-          status: "Compile Error",
-          time: null,
-          memory: null,
-          error: hint,
+          input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: "",
+          passed: false, status: "Compile Error", time: null, memory: null, error: hint,
         }));
-        return Response.json({
-          results: stubResults,
-          summary: { total: stubResults.length, passed: 0, allPassed: false, mode },
-        });
+        return Response.json({ results: stubResults, summary: { total: stubResults.length, passed: 0, allPassed: false, mode } });
       }
     }
 
-    // C: require explicit main()
+    // ── Java: auto-wrap LeetCode Solution class ───────────────────────────
+    if (language === "java" && !/public\s+static\s+void\s+main/.test(processedCode) && !/public\s+class\s+Main/.test(processedCode)) {
+      const wrapped = wrapJavaSolution(processedCode);
+      if (wrapped) {
+        processedCode = wrapped;
+      } else {
+        const hint = "Could not auto-wrap this Java solution. Ensure your Solution class uses standard LeetCode-style method signatures.";
+        const stubResults = casesToRun.map((tc) => ({
+          input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: "",
+          passed: false, status: "Compile Error", time: null, memory: null, error: hint,
+        }));
+        return Response.json({ results: stubResults, summary: { total: stubResults.length, passed: 0, allPassed: false, mode } });
+      }
+    }
+
+    // ── C: require explicit main() ────────────────────────────────────────
     if (language === "c" && !/\bint\s+main\b/.test(processedCode)) {
       const hint = "Your C code must have a `int main()` function that reads from stdin and prints to stdout.";
       const stubResults = casesToRun.map((tc) => ({
-        input: tc.input,
-        expectedOutput: tc.expectedOutput,
-        actualOutput: "",
-        passed: false,
-        status: "Compile Error",
-        time: null,
-        memory: null,
-        error: hint,
+        input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: "",
+        passed: false, status: "Compile Error", time: null, memory: null, error: hint,
       }));
-      return Response.json({
-        results: stubResults,
-        summary: { total: stubResults.length, passed: 0, allPassed: false, mode },
-      });
+      return Response.json({ results: stubResults, summary: { total: stubResults.length, passed: 0, allPassed: false, mode } });
     }
 
     const results = await runAgainstTestCases(
@@ -383,14 +654,13 @@ export async function POST(request: NextRequest) {
       }))
     );
 
-    // Replace raw linker errors with friendly message
+    // Replace raw linker/runtime errors with friendly messages
     const processedResults = results.map((r) => {
       if (r.error && r.error.includes("undefined reference to `main'")) {
-        return {
-          ...r,
-          error:
-            "Compile Error: Your C/C++ code must include an `int main()` function.",
-        };
+        return { ...r, error: "Compile Error: Your C/C++ code must include an `int main()` function." };
+      }
+      if (r.error && r.error.includes("Main method not found")) {
+        return { ...r, error: "Compile Error: Your Java code must have a `public static void main(String[] args)` method, or use the standard LeetCode Solution class format." };
       }
       return r;
     });
