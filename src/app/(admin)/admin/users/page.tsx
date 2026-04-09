@@ -235,32 +235,33 @@ export default function AdminUsersPage() {
           </span>
         </div>
       ) : (
-        {/* Floating bulk action bar */}
-        {selected.size > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl bg-surface subtle-border shadow-lg">
-            <span className="text-on-surface text-sm font-medium">{selected.size} selected</span>
-            <button
-              onClick={() => { setGrantTarget("bulk"); setGrantPlan("premium"); setGrantExpiry("1y"); }}
-              className="px-4 py-2 rounded-lg gradient-primary text-on-primary text-xs font-medium hover:opacity-90 transition-opacity"
-            >
-              Grant Plan
-            </button>
-            <button
-              onClick={() => exportCSV(users.filter((u) => selected.has(u.id)))}
-              className="px-4 py-2 rounded-lg bg-surface-container-high text-on-surface text-xs font-medium hover:bg-surface-container-highest transition-colors"
-            >
-              Export CSV
-            </button>
-            <button
-              onClick={() => setSelected(new Set())}
-              className="text-on-surface-variant text-xs hover:text-on-surface transition-colors"
-            >
-              Clear
-            </button>
-          </div>
-        )}
+        <>
+          {/* Floating bulk action bar */}
+          {selected.size > 0 && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl bg-surface subtle-border shadow-lg">
+              <span className="text-on-surface text-sm font-medium">{selected.size} selected</span>
+              <button
+                onClick={() => { setGrantTarget("bulk"); setGrantPlan("premium"); setGrantExpiry("1y"); }}
+                className="px-4 py-2 rounded-lg gradient-primary text-on-primary text-xs font-medium hover:opacity-90 transition-opacity"
+              >
+                Grant Plan
+              </button>
+              <button
+                onClick={() => exportCSV(users.filter((u) => selected.has(u.id)))}
+                className="px-4 py-2 rounded-lg bg-surface-container-high text-on-surface text-xs font-medium hover:bg-surface-container-highest transition-colors"
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={() => setSelected(new Set())}
+                className="text-on-surface-variant text-xs hover:text-on-surface transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          )}
 
-        <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+          <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant/10">
             <span className="text-on-surface-variant text-xs">{filtered.length} users shown</span>
             <button
@@ -452,6 +453,7 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Grant Plan Modal */}
