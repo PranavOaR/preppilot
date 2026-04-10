@@ -72,20 +72,28 @@ export default function NewInterviewPage() {
       showToast("Interview quota exhausted.", "error");
       return;
     }
-    const sessionId = await createInterviewSession({
-      userId: user.uid,
-      type: config.type,
-      targetCompany: config.targetCompany,
-      language: config.language,
-      speaker: config.speaker || "meera",
-      mode: config.mode || "practice",
-      topics: config.topics,
-      totalQuestions: config.totalQuestions,
-      questionsCompleted: 0,
-      status: "in-progress",
-      overallScore: null,
-    });
-    router.push(`/interview/${sessionId}`);
+    try {
+      const sessionData: Parameters<typeof createInterviewSession>[0] = {
+        userId: user.uid,
+        type: config.type,
+        targetCompany: config.targetCompany,
+        language: config.language,
+        speaker: config.speaker || "meera",
+        mode: config.mode || "practice",
+        totalQuestions: config.totalQuestions,
+        questionsCompleted: 0,
+        status: "in-progress",
+        overallScore: null,
+      };
+      // Only include topics if defined — Firestore rejects undefined field values
+      if (config.topics?.length) sessionData.topics = config.topics;
+
+      const sessionId = await createInterviewSession(sessionData);
+      router.push(`/interview/${sessionId}`);
+    } catch (err) {
+      console.error("Failed to create interview session:", err);
+      showToast("Failed to start interview. Please try again.", "error");
+    }
   }
 
   async function handleBuyInterview() {

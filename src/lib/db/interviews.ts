@@ -19,8 +19,12 @@ export async function createInterviewSession(
   session: Omit<InterviewSession, "id" | "startedAt" | "completedAt">
 ): Promise<string> {
   const ref = doc(collection(db, "interviewSessions"));
+  // Strip undefined values — Firestore throws on undefined field values
+  const clean = Object.fromEntries(
+    Object.entries(session).filter(([, v]) => v !== undefined)
+  );
   await setDoc(ref, {
-    ...session,
+    ...clean,
     startedAt: serverTimestamp(),
     completedAt: null,
   });
