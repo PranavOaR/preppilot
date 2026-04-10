@@ -7,6 +7,7 @@ import {
   updateUserRole,
   updateUserPlan,
   unflagUser,
+  resetInterviewUsage,
   type UserWithId,
 } from "@/lib/db/admin";
 import { PLAN_LIMITS, type PlanTier } from "@/lib/types/plans";
@@ -152,6 +153,25 @@ export default function AdminUsersPage() {
       );
     } catch (err) {
       console.error("Failed to unflag user:", err);
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function handleResetInterviews(userId: string, username: string) {
+    if (!confirm(`Reset interview counter for ${username || userId}? This lets them use their plan quota again.`)) return;
+    setUpdatingId(userId);
+    try {
+      await resetInterviewUsage(userId);
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.id !== userId) return u;
+          const usage = u.usageThisMonth ? { ...u.usageThisMonth, interviewsLifetime: 0, interviewsThisMonth: 0 } : undefined;
+          return { ...u, usageThisMonth: usage };
+        })
+      );
+    } catch (err) {
+      console.error("Failed to reset interview usage:", err);
     } finally {
       setUpdatingId(null);
     }
@@ -401,7 +421,7 @@ export default function AdminUsersPage() {
                           <p className="text-on-surface-variant text-xs uppercase tracking-wider mb-3 font-medium">
                             This Month&apos;s Usage
                           </p>
-                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4">
                             {[
                               { label: "DSA Runs", used: usage?.dsaRuns ?? 0, limit: limits.dsaRuns },
                               { label: "Submits", used: usage?.dsaSubmits ?? 0, limit: limits.dsaSubmits },
@@ -437,6 +457,17 @@ export default function AdminUsersPage() {
                                 </div>
                               );
                             })}
+                          </div>
+                          <div className="flex items-center gap-3 pt-3 border-t border-outline-variant/10">
+                            <span className="text-on-surface-variant text-xs">Admin actions:</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleResetInterviews(u.id, u.username || u.email || u.id); }}
+                              disabled={updatingId === u.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors disabled:opacity-40"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">restart_alt</span>
+                              Reset Interview Counter
+                            </button>
                           </div>
                         </td>
                       </tr>

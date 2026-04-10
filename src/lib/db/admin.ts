@@ -46,3 +46,16 @@ export async function unflagUser(uid: string) {
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, { isUnethical: false });
 }
+
+/**
+ * Reset a user's interview usage counters back to 0.
+ * Resets both interviewsLifetime (free/starter/pro) and interviewsThisMonth (premium)
+ * so the user can start a fresh interview regardless of plan type.
+ */
+export async function resetInterviewUsage(uid: string) {
+  const userRef = doc(db, "users", uid);
+  await updateDoc(userRef, {
+    "usageThisMonth.interviewsLifetime": 0,
+    "usageThisMonth.interviewsThisMonth": 0,
+  });
+}
