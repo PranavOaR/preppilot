@@ -101,5 +101,12 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    // ─── Payments ───
+    match /payments/{paymentId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
   }
 }

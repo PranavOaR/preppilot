@@ -34,14 +34,26 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        const [problemsSnap, contestsSnap, submissionsSnap, paymentsSnap, users] =
-          await Promise.all([
+        const [problemsResult, contestsResult, submissionsResult, paymentsResult, usersResult] =
+          await Promise.allSettled([
             getDocs(collection(db, "problems")),
             getDocs(collection(db, "contests")),
             getDocs(collection(db, "submissions")),
             getDocs(collection(db, "payments")),
             getAllUsers(),
           ]);
+
+        const problemsSnap = problemsResult.status === "fulfilled" ? problemsResult.value : null;
+        const contestsSnap = contestsResult.status === "fulfilled" ? contestsResult.value : null;
+        const submissionsSnap = submissionsResult.status === "fulfilled" ? submissionsResult.value : null;
+        const paymentsSnap = paymentsResult.status === "fulfilled" ? paymentsResult.value : null;
+        const users = usersResult.status === "fulfilled" ? usersResult.value : [];
+
+        if (problemsResult.status === "rejected") console.error("problems fetch failed:", problemsResult.reason);
+        if (contestsResult.status === "rejected") console.error("contests fetch failed:", contestsResult.reason);
+        if (submissionsResult.status === "rejected") console.error("submissions fetch failed:", submissionsResult.reason);
+        if (paymentsResult.status === "rejected") console.error("payments fetch failed:", paymentsResult.reason);
+        if (usersResult.status === "rejected") console.error("users fetch failed:", usersResult.reason);
 
         const planCounts: Record<PlanTier, number> = {
           free: 0, starter: 0, pro: 0, premium: 0,
@@ -57,7 +69,7 @@ export default function AdminDashboardPage() {
         const thisMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
         let totalRevenueInr = 0;
         let paymentsThisMonth = 0;
-        for (const p of paymentsSnap.docs) {
+        for (const p of (paymentsSnap?.docs ?? [])) {
           const d = p.data();
           totalRevenueInr += d.amountInr || 0;
           const paidAt = d.paidAt?.toDate?.()?.toISOString?.()?.slice(0, 7);
@@ -66,16 +78,16 @@ export default function AdminDashboardPage() {
 
         setStats({
           totalUsers: users.length,
-          totalProblems: problemsSnap.size,
-          totalContests: contestsSnap.size,
-          totalSubmissions: submissionsSnap.size,
+          totalProblems: problemsSnap?.size ?? 0,
+          totalContests: contestsSnap?.size ?? 0,
+          totalSubmissions: submissionsSnap?.size ?? 0,
           flaggedUsers: flagged.length,
           planCounts,
           totalRevenueInr,
           paymentsThisMonth,
         });
 
-        const subs = submissionsSnap.docs
+        const subs = (submissionsSnap?.docs ?? [])
           .map((d) => ({ id: d.id, ...d.data() }))
           .sort((a: any, b: any) => {
             const aTime = a.submittedAt?.seconds || 0;
