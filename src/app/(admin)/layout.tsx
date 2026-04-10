@@ -42,7 +42,7 @@ export default function AdminLayout({
       <TopNav />
       <div className="flex">
         <AdminSidebar />
-        <main className="flex-1 min-h-[calc(100vh-57px)]">{children}</main>
+        <main className="flex-1 min-h-[calc(100vh-57px)] pb-20 md:pb-0">{children}</main>
       </div>
     </>
   );

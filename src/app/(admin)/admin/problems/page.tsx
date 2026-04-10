@@ -38,10 +38,10 @@ export default function AdminProblemsPage() {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-8 space-y-6 max-w-5xl">
+      <div className="flex items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-2xl text-on-surface font-medium tracking-tight">
+          <h1 className="font-serif text-xl sm:text-2xl text-on-surface font-medium tracking-tight">
             Problems
           </h1>
           <p className="text-on-surface-variant text-sm mt-1">
@@ -50,15 +50,16 @@ export default function AdminProblemsPage() {
         </div>
         <Link
           href="/admin/problems/create"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity"
+          className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity shrink-0"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
-          New Problem
+          <span className="hidden sm:inline">New Problem</span>
+          <span className="sm:hidden">New</span>
         </Link>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value as any)}
@@ -88,7 +89,8 @@ export default function AdminProblemsPage() {
         </div>
       ) : (
         <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px]">
             <thead>
               <tr className="border-b border-outline-variant/10">
                 <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Title</th>
@@ -139,6 +141,7 @@ export default function AdminProblemsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

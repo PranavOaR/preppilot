@@ -129,7 +129,7 @@ export default function AdminDashboardPage() {
   const paidUsers = (stats?.planCounts.starter ?? 0) + (stats?.planCounts.pro ?? 0) + (stats?.planCounts.premium ?? 0);
 
   return (
-    <div className="p-8 space-y-8 max-w-5xl">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 max-w-5xl">
       <div>
         <h1 className="font-serif text-2xl text-on-surface font-medium tracking-tight">
           Admin Dashboard
@@ -140,7 +140,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {statCards.map((card) => {
           const inner = (
             <div className="rounded-lg bg-surface-container-low subtle-border p-5 hover:bg-surface-container transition-colors h-full">
@@ -215,7 +215,8 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[500px]">
               <thead>
                 <tr className="border-b border-outline-variant/10">
                   <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">User</th>
@@ -242,6 +243,7 @@ export default function AdminDashboardPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -249,7 +251,7 @@ export default function AdminDashboardPage() {
       {/* Quick Actions */}
       <div className="space-y-3">
         <h2 className="text-on-surface font-medium">Quick Actions</h2>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Link
             href="/admin/problems/create"
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity"
@@ -281,7 +283,8 @@ export default function AdminDashboardPage() {
           <p className="text-on-surface-variant text-sm">No submissions yet.</p>
         ) : (
           <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px]">
               <thead>
                 <tr className="border-b border-outline-variant/10">
                   <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">User</th>
@@ -309,6 +312,7 @@ export default function AdminDashboardPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

@@ -184,7 +184,7 @@ export default function AdminUsersPage() {
   );
 
   return (
-    <div className="p-8 space-y-6 max-w-6xl">
+    <div className="p-4 sm:p-8 space-y-6 max-w-6xl">
       <div>
         <h1 className="font-serif text-2xl text-on-surface font-medium tracking-tight">
           Users
@@ -262,7 +262,7 @@ export default function AdminUsersPage() {
           )}
 
           <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant/10">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant/10 gap-2">
             <span className="text-on-surface-variant text-xs">{filtered.length} users shown</span>
             <button
               onClick={() => exportCSV(filtered)}
@@ -272,7 +272,8 @@ export default function AdminUsersPage() {
               Export CSV
             </button>
           </div>
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-outline-variant/10">
                 <th className="px-4 py-3 w-8">
@@ -452,6 +453,7 @@ export default function AdminUsersPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
         </>
       )}
