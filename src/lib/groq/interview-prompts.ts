@@ -6,7 +6,8 @@ export function buildQuestionPrompt(
   questionIndex: number,
   totalQuestions: number,
   previousQAs: InterviewQA[],
-  topics?: string[]
+  topics?: string[],
+  avgScore?: number
 ): string {
   const context = [
     `You are a technical interviewer at ${targetCompany}, conducting a ${type} interview.`,
@@ -36,6 +37,18 @@ export function buildQuestionPrompt(
       `Ask a question that ${targetCompany} is known to ask in interviews.`,
       "Mix technical and situational questions."
     );
+  }
+
+  if (avgScore !== undefined) {
+    if (avgScore >= 8) {
+      context.push(
+        "The candidate is performing very well. Ask a more challenging question requiring deeper knowledge or edge-case reasoning."
+      );
+    } else if (avgScore <= 4) {
+      context.push(
+        "The candidate is struggling. Ask a moderately accessible question to help them demonstrate partial understanding."
+      );
+    }
   }
 
   if (previousQAs.length > 0) {

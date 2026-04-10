@@ -18,7 +18,10 @@ export interface InterviewConfig {
   type: InterviewType;
   targetCompany: string;
   totalQuestions: number;
-  language: string; // TTS/STT language code e.g. "en-IN"
+  language: string;   // TTS/STT language code e.g. "en-IN"
+  speaker: string;    // "meera" | "arvind"
+  mode: "practice" | "exam";
+  topics?: string[];  // optional topic focus (DSA only)
 }
 
 export interface InterviewSession {
@@ -27,6 +30,9 @@ export interface InterviewSession {
   type: InterviewType;
   targetCompany: string;
   language: string;
+  speaker: string;
+  mode: "practice" | "exam";
+  topics?: string[];
   totalQuestions: number;
   questionsCompleted: number;
   status: "in-progress" | "completed" | "abandoned";
@@ -46,6 +52,9 @@ export interface InterviewQA {
   parentIndex: number | null;
   timeTakenSeconds: number;
   answeredAt: Timestamp | null;
+  fillerCount?: number;        // count of filler words detected
+  confidenceRating?: number;   // user self-rating 1-5
+  answerDurationSeconds?: number;
 }
 
 export interface InterviewFeedback {

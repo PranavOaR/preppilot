@@ -19,6 +19,18 @@ const COMPANIES = [
 
 const QUESTION_COUNTS = [3, 5, 7, 10];
 
+const DSA_TOPICS = [
+  "Arrays", "Strings", "Two Pointers", "Binary Search",
+  "Linked Lists", "Stack", "Trees", "Dynamic Programming",
+  "Graphs", "Sorting", "Heap", "Greedy",
+  "Backtracking", "Hash Tables", "Matrix", "Bit Manipulation",
+];
+
+const SPEAKERS = [
+  { id: "meera", label: "Meera", icon: "face_3", description: "Female voice" },
+  { id: "arvind", label: "Arvind", icon: "face", description: "Male voice" },
+];
+
 interface InterviewSetupProps {
   onStart: (config: InterviewConfig) => void;
   defaultCompany?: string;
@@ -29,6 +41,15 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
   const [company, setCompany] = useState(defaultCompany || "TCS");
   const [questionCount, setQuestionCount] = useState(5);
   const [language, setLanguage] = useState("en-IN");
+  const [speaker, setSpeaker] = useState("meera");
+  const [mode, setMode] = useState<"practice" | "exam">("practice");
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+
+  function toggleTopic(topic: string) {
+    setSelectedTopics((prev) =>
+      prev.includes(topic) ? prev.filter((t) => t !== topic) : [...prev, topic]
+    );
+  }
 
   function handleStart() {
     onStart({
@@ -36,6 +57,9 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
       targetCompany: company,
       totalQuestions: questionCount,
       language,
+      speaker,
+      mode,
+      topics: type === "dsa" && selectedTopics.length > 0 ? selectedTopics : undefined,
     });
   }
 
@@ -55,7 +79,7 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
           {INTERVIEW_TYPES.map((t) => (
             <button
               key={t.type}
-              onClick={() => setType(t.type)}
+              onClick={() => { setType(t.type); setSelectedTopics([]); }}
               className={`p-4 rounded-lg text-left transition-all ${
                 type === t.type
                   ? "bg-primary-container/15 border border-primary-brand/40 subtle-glow"
@@ -79,6 +103,33 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
           ))}
         </div>
       </div>
+
+      {/* DSA Topic Focus (only for DSA type) */}
+      {type === "dsa" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-on-surface text-sm font-medium">Topic Focus</h3>
+            <span className="text-on-surface-variant text-xs">
+              {selectedTopics.length === 0 ? "All topics (no filter)" : `${selectedTopics.length} selected`}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {DSA_TOPICS.map((topic) => (
+              <button
+                key={topic}
+                onClick={() => toggleTopic(topic)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  selectedTopics.includes(topic)
+                    ? "bg-primary-container/20 text-primary-brand border border-primary-brand/30"
+                    : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                {topic}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Target Company */}
       <div className="space-y-3">
@@ -120,7 +171,54 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
         </div>
       </div>
 
-      {/* Language */}
+      {/* Mode */}
+      <div className="space-y-3">
+        <h3 className="text-on-surface text-sm font-medium">Interview Mode</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setMode("practice")}
+            className={`p-4 rounded-lg text-left transition-all ${
+              mode === "practice"
+                ? "bg-primary-container/15 border border-primary-brand/40"
+                : "bg-surface-container border border-transparent hover:bg-surface-container-high"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`material-symbols-outlined text-[18px] ${mode === "practice" ? "text-primary-brand" : "text-outline"}`}>
+                school
+              </span>
+              <span className={`text-sm font-medium ${mode === "practice" ? "text-primary-brand" : "text-on-surface"}`}>
+                Practice
+              </span>
+            </div>
+            <p className="text-xs text-on-surface-variant pl-6">
+              Get coaching tips after low-scoring answers
+            </p>
+          </button>
+          <button
+            onClick={() => setMode("exam")}
+            className={`p-4 rounded-lg text-left transition-all ${
+              mode === "exam"
+                ? "bg-primary-container/15 border border-primary-brand/40"
+                : "bg-surface-container border border-transparent hover:bg-surface-container-high"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`material-symbols-outlined text-[18px] ${mode === "exam" ? "text-primary-brand" : "text-outline"}`}>
+                timer
+              </span>
+              <span className={`text-sm font-medium ${mode === "exam" ? "text-primary-brand" : "text-on-surface"}`}>
+                Exam
+              </span>
+            </div>
+            <p className="text-xs text-on-surface-variant pl-6">
+              No hints — simulate a real interview
+            </p>
+          </button>
+        </div>
+      </div>
+
+      {/* Voice Language */}
       <div className="space-y-3">
         <h3 className="text-on-surface text-sm font-medium">Voice Language</h3>
         <select
@@ -134,6 +232,34 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Interviewer Voice */}
+      <div className="space-y-3">
+        <h3 className="text-on-surface text-sm font-medium">Interviewer Voice</h3>
+        <div className="flex gap-3">
+          {SPEAKERS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setSpeaker(s.id)}
+              className={`flex-1 flex items-center gap-3 p-3 rounded-lg transition-all ${
+                speaker === s.id
+                  ? "bg-primary-container/15 border border-primary-brand/40"
+                  : "bg-surface-container border border-transparent hover:bg-surface-container-high"
+              }`}
+            >
+              <span className={`material-symbols-outlined text-[22px] ${speaker === s.id ? "text-primary-brand" : "text-outline"}`}>
+                {s.icon}
+              </span>
+              <div className="text-left">
+                <p className={`text-sm font-medium ${speaker === s.id ? "text-primary-brand" : "text-on-surface"}`}>
+                  {s.label}
+                </p>
+                <p className="text-xs text-on-surface-variant">{s.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Microphone Permission Notice */}

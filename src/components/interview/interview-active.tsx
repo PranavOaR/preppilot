@@ -88,6 +88,11 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
   const [micError, setMicError] = useState("");
   const [quotaError, setQuotaError] = useState("");
 
+  const [pendingConfidence, setPendingConfidence] = useState(3);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesText, setNotesText] = useState("");
+  const [coachingHint, setCoachingHint] = useState("");
+
   const qasRef = useRef<InterviewQA[]>([]);
   const abortRef = useRef(false);
   const stopRecordingRef = useRef<(() => void) | null>(null);
@@ -99,8 +104,15 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
   const userSkippedRef = useRef(false);
   const startRecordingTriggerRef = useRef<(() => void) | null>(null);
   const confirmResultRef = useRef<{ confirm: () => void; retry: () => void } | null>(null);
+  const pendingConfidenceRef = useRef(3);
+  const lastAnswerDurationRef = useRef(0);
 
   useEffect(() => { qasRef.current = qas; }, [qas]);
+
+  function countFillerWords(text: string): number {
+    const fillers = /\b(um+|uh+|like|you know|basically|literally|actually|sort of|kind of|well|so|right|okay)\b/gi;
+    return (text.match(fillers) || []).length;
+  }
 
   // ── Fetch with AbortController timeout ───────────────────────────────────
   async function fetchWithTimeout(
@@ -185,7 +197,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, language: "en-IN", speaker: "anushka" }),
+          body: JSON.stringify({ text, language: config.language, speaker: config.speaker || "meera" }),
         },
         15000
       );
@@ -248,6 +260,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         function stopRec() {
           if (stopped) return;
           stopped = true;
+          lastAnswerDurationRef.current = secs;
           clearInterval(tick);
           timerRef.current = null;
           setRecordingSeconds(0);
@@ -285,7 +298,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
 
             const form = new FormData();
             form.append("audio", wavBlob, "recording.wav");
-            form.append("language", "en-IN");
+            form.append("language", config.language);
 
             const res = await fetchWithTimeout("/api/interview/stt", { method: "POST", body: form }, 30000);
             if (!res.ok) {
@@ -446,6 +459,9 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     const typedFallbacks = FALLBACK_QUESTIONS[config.type] || FALLBACK_QUESTIONS["company-specific"];
 
     async function run() {
+      let totalScore = 0;
+      let scoredCount = 0;
+
       // ── Greeting ──
       const greetingPersona = PERSONAS[config.type] || { name: "Arjun", role: "Technical Interviewer" };
       setPhase("greeting");
@@ -466,6 +482,12 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         setPendingTranscript("");
         setQuestionIndex(i);
 
+        setCoachingHint("");
+        pendingConfidenceRef.current = 3;
+        setPendingConfidence(3);
+
+        const runningAvg = scoredCount > 0 ? Math.round(totalScore / scoredCount) : undefined;
+
         let question = typedFallbacks[i % typedFallbacks.length];
         try {
           const res = await fetchWithTimeout(
@@ -479,6 +501,8 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
                 questionIndex: i,
                 totalQuestions: config.totalQuestions,
                 previousQAs: allQAs,
+                topics: config.topics,
+                avgScore: runningAvg,
                 userId,
               }),
             },
@@ -572,6 +596,8 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
             } catch {}
 
             const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+            const fillerCount = countFillerWords(userSpeech);
+            const answerDuration = lastAnswerDurationRef.current;
             const qa: InterviewQA = {
               index: allQAs.length,
               questionText: question,
@@ -583,9 +609,14 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
               parentIndex: null,
               timeTakenSeconds: timeTaken,
               answeredAt: null as any,
+              fillerCount,
+              confidenceRating: pendingConfidenceRef.current,
+              answerDurationSeconds: answerDuration,
             };
             allQAs.push(qa);
             setQAs([...allQAs]);
+            totalScore += score;
+            scoredCount++;
             try {
               await saveInterviewQA(sessionId, qa);
               await updateInterviewSession(sessionId, { questionsCompleted: i + 1 });
@@ -603,6 +634,103 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
                 answered = false;
                 setCurrentQuestion(question);
               }
+            }
+
+            // Follow-up question for low scores (not on last question)
+            if (score < 6 && i < config.totalQuestions - 1 && !abortRef.current) {
+              setPhase("generating");
+              setStatusText("Interviewer has a follow-up question...");
+              let followUpQuestion = "";
+              try {
+                const fuRes = await fetchWithTimeout(
+                  "/api/interview/question",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      followUp: { originalQuestion: question, userAnswer: userSpeech, score },
+                    }),
+                  },
+                  10000
+                );
+                const fuData = await fuRes.json();
+                if (fuData.question) followUpQuestion = fuData.question;
+              } catch {}
+
+              if (followUpQuestion && !abortRef.current) {
+                setCurrentQuestion(followUpQuestion);
+                setPhase("speaking");
+                setStatusText("Interviewer is asking a follow-up...");
+                await speakText(followUpQuestion);
+
+                if (!abortRef.current) {
+                  pendingConfidenceRef.current = 3;
+                  setPendingConfidence(3);
+                  transcriptModeRef.current = "answer";
+                  const fuSpeech = await recordAndTranscribe();
+
+                  if (!abortRef.current && fuSpeech && !fuSpeech.startsWith("[")) {
+                    setPhase("processing");
+                    setStatusText("Evaluating follow-up answer...");
+                    let fuScore = 5;
+                    let fuEvaluation = "";
+                    let fuComment = "";
+                    try {
+                      const evalRes = await fetchWithTimeout(
+                        "/api/interview/evaluate",
+                        {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            question: followUpQuestion,
+                            transcript: fuSpeech,
+                            type: config.type,
+                          }),
+                        },
+                        20000
+                      );
+                      const evalData = await evalRes.json();
+                      fuScore = evalData.score ?? 5;
+                      fuEvaluation = evalData.evaluation ?? "";
+                      fuComment = evalData.comment ?? "";
+                    } catch {}
+
+                    const fuQA: InterviewQA = {
+                      index: allQAs.length,
+                      questionText: followUpQuestion,
+                      questionTopic: config.type,
+                      userTranscript: fuSpeech,
+                      score: fuScore,
+                      evaluation: fuEvaluation,
+                      isFollowUp: true,
+                      parentIndex: allQAs.length - 1,
+                      timeTakenSeconds: 0,
+                      answeredAt: null as any,
+                      fillerCount: countFillerWords(fuSpeech),
+                      confidenceRating: pendingConfidenceRef.current,
+                      answerDurationSeconds: lastAnswerDurationRef.current,
+                    };
+                    allQAs.push(fuQA);
+                    setQAs([...allQAs]);
+                    totalScore += fuScore;
+                    scoredCount++;
+                    try { await saveInterviewQA(sessionId, fuQA); } catch {}
+
+                    if (fuComment && !abortRef.current) {
+                      setPhase("speaking");
+                      setStatusText("Interviewer is responding...");
+                      setCurrentQuestion(fuComment);
+                      await speakText(fuComment);
+                    }
+                  }
+                }
+              }
+            }
+
+            // Coaching hint in practice mode for low scores
+            if (config.mode === "practice" && score < 6 && evaluation) {
+              const firstSentence = evaluation.split(". ")[0];
+              setCoachingHint(firstSentence.endsWith(".") ? firstSentence : firstSentence + ".");
             }
           }
         }
@@ -644,10 +772,17 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         <div className="w-10 h-10 rounded-full bg-primary-container/20 border border-primary-brand/20 flex items-center justify-center shrink-0">
           <span className="material-symbols-outlined text-[20px] text-primary-brand">person</span>
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-medium text-on-surface">{persona.name}</p>
           <p className="text-xs text-on-surface-variant">{persona.role} · {config.targetCompany}</p>
         </div>
+        <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${
+          config.mode === "practice"
+            ? "bg-blue-500/10 text-blue-400"
+            : "bg-orange-500/10 text-orange-400"
+        }`}>
+          {config.mode === "practice" ? "Practice" : "Exam"}
+        </span>
       </div>
 
       <InterviewProgress current={questionIndex} total={config.totalQuestions} />
@@ -830,6 +965,29 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
           <div className="rounded-lg bg-surface-container-low p-3 border border-outline-variant/15">
             <p className="text-on-surface text-sm leading-relaxed">{pendingTranscript}</p>
           </div>
+          {/* Confidence rating */}
+          <div className="space-y-2">
+            <p className="text-xs text-on-surface-variant">How confident were you in your answer?</p>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => { pendingConfidenceRef.current = n; setPendingConfidence(n); }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    pendingConfidence === n
+                      ? "bg-primary-container/20 text-primary-brand border border-primary-brand/30"
+                      : "bg-surface-container-low text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-between text-[10px] text-on-surface-variant px-0.5">
+              <span>Not confident</span>
+              <span>Very confident</span>
+            </div>
+          </div>
           <div className="flex items-center gap-3 justify-end">
             <button
               onClick={() => confirmResultRef.current?.retry()}
@@ -848,6 +1006,46 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
           </div>
         </div>
       )}
+
+      {/* Coaching hint (practice mode) */}
+      {coachingHint && config.mode === "practice" && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-500/5 border border-blue-400/20">
+          <span className="material-symbols-outlined text-[18px] text-blue-400 shrink-0 mt-0.5">lightbulb</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-blue-400 mb-0.5">Coach&apos;s Tip</p>
+            <p className="text-xs text-on-surface-variant leading-relaxed">{coachingHint}</p>
+          </div>
+          <button
+            onClick={() => setCoachingHint("")}
+            className="text-outline hover:text-on-surface-variant transition-colors shrink-0"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
+
+      {/* Notes scratchpad */}
+      <div className="rounded-xl bg-surface-container subtle-border overflow-hidden">
+        <button
+          onClick={() => setNotesOpen((o) => !o)}
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-on-surface-variant hover:text-on-surface transition-colors"
+        >
+          <span className="material-symbols-outlined text-[16px]">edit_note</span>
+          <span>Notes scratchpad</span>
+          <span className="material-symbols-outlined text-[16px] ml-auto transition-transform duration-150" style={{ transform: notesOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+            expand_more
+          </span>
+        </button>
+        {notesOpen && (
+          <textarea
+            value={notesText}
+            onChange={(e) => setNotesText(e.target.value)}
+            placeholder="Jot down ideas, key points, or anything to help you answer..."
+            rows={4}
+            className="w-full px-4 pb-3 bg-transparent text-on-surface text-xs leading-relaxed resize-none outline-none placeholder:text-outline"
+          />
+        )}
+      </div>
 
       {/* End interview early */}
       {qas.length > 0 && !isBusy && !isWaitingToRecord && !isRecording && !isConfirming && (

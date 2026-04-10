@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
       totalQuestions,
       previousQAs,
       followUp,
+      topics,
+      avgScore,
     } = (await req.json()) as {
       type: InterviewType;
       targetCompany: string;
@@ -29,6 +31,8 @@ export async function POST(req: NextRequest) {
       totalQuestions: number;
       previousQAs: InterviewQA[];
       followUp?: { originalQuestion: string; userAnswer: string; score: number };
+      topics?: string[];
+      avgScore?: number;
     };
 
     let prompt: string;
@@ -44,12 +48,14 @@ export async function POST(req: NextRequest) {
         targetCompany,
         questionIndex,
         totalQuestions,
-        previousQAs
+        previousQAs,
+        topics,
+        avgScore
       );
     }
 
     const completion = await getGroq().chat.completions.create({
-      model: GROQ_MODELS.fast,
+      model: GROQ_MODELS.capable,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.8,
       max_tokens: 300,

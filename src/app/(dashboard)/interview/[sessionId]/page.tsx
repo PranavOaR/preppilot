@@ -51,6 +51,9 @@ export default function InterviewSessionPage() {
     targetCompany: session.targetCompany,
     totalQuestions: session.totalQuestions,
     language: session.language,
+    speaker: session.speaker || "meera",
+    mode: session.mode || "practice",
+    topics: session.topics,
   };
 
   return (
