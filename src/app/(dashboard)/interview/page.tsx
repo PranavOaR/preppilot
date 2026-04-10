@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { getUserInterviews, getInterviewFeedback } from "@/lib/db/interviews";
+import { getUsage } from "@/lib/plans/usage";
 import type { InterviewSession, InterviewFeedback } from "@/lib/types/interview";
+import type { PlanTier, PlanLimits, MonthlyUsage } from "@/lib/types/plans";
+import { INTERVIEW_ADDON_PRICE } from "@/lib/types/plans";
 
 const TYPE_LABELS: Record<string, string> = {
   dsa: "DSA",
@@ -35,14 +38,25 @@ export default function InterviewHistoryPage() {
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [feedbackMap, setFeedbackMap] = useState<Record<string, InterviewFeedback>>({});
   const [loading, setLoading] = useState(true);
+  const [quotaPlan, setQuotaPlan] = useState<PlanTier>("free");
+  const [quotaLimits, setQuotaLimits] = useState<PlanLimits | null>(null);
+  const [quotaUsage, setQuotaUsage] = useState<MonthlyUsage | null>(null);
+  const [purchasedCredits, setPurchasedCredits] = useState(0);
 
   useEffect(() => {
     if (!user) return;
 
     async function loadHistory() {
       try {
-        const data = await getUserInterviews(user!.uid);
+        const [data, usageData] = await Promise.all([
+          getUserInterviews(user!.uid),
+          getUsage(user!.uid),
+        ]);
         setSessions(data);
+        setQuotaPlan(usageData.plan);
+        setQuotaLimits(usageData.limits);
+        setQuotaUsage(usageData.usage);
+        setPurchasedCredits(usageData.purchasedInterviews);
 
         const completed = data.filter((s) => s.status === "completed");
         const fbEntries = await Promise.all(
@@ -76,9 +90,19 @@ export default function InterviewHistoryPage() {
     );
   }
 
+  // Derive quota display values
+  const isMonthly = quotaLimits?.interviewsMonthly ?? false;
+  const interviewsUsed = isMonthly
+    ? (quotaUsage?.interviewsThisMonth ?? 0)
+    : (quotaUsage?.interviewsLifetime ?? 0);
+  const interviewLimit = quotaLimits?.interviews ?? 1;
+  const planQuotaLeft = Math.max(0, interviewLimit - interviewsUsed);
+  const totalAvailable = planQuotaLeft + purchasedCredits;
+  const isExhausted = totalAvailable === 0;
+
   return (
     <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-serif text-2xl text-on-surface font-medium">Mock Interviews</h1>
           <p className="text-on-surface-variant text-sm mt-1">
@@ -87,12 +111,55 @@ export default function InterviewHistoryPage() {
         </div>
         <Link
           href="/interview/new"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity shrink-0"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
           New Interview
         </Link>
       </div>
+
+      {/* Quota status banner */}
+      {quotaLimits && (
+        <div className={`rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 subtle-border ${
+          isExhausted ? "bg-red-500/5 border-red-500/20" : "bg-surface-container-low"
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className={`material-symbols-outlined text-[22px] ${isExhausted ? "text-error" : "text-primary-brand"}`}>
+              record_voice_over
+            </span>
+            <div>
+              <p className="text-on-surface text-sm font-medium">
+                {isExhausted
+                  ? quotaPlan === "free"
+                    ? "Free trial interview used"
+                    : "Interview limit reached"
+                  : `${totalAvailable} interview${totalAvailable !== 1 ? "s" : ""} available`}
+              </p>
+              <p className="text-on-surface-variant text-xs mt-0.5">
+                {planQuotaLeft} plan quota
+                {purchasedCredits > 0 && ` · ${purchasedCredits} purchased credit${purchasedCredits > 1 ? "s" : ""}`}
+                {isMonthly ? " · resets monthly" : " · lifetime"}
+              </p>
+            </div>
+          </div>
+          {isExhausted && (
+            <div className="flex gap-2 shrink-0">
+              <Link
+                href="/interview/new"
+                className="px-4 py-2 rounded-lg text-xs font-medium gradient-primary text-on-primary hover:opacity-90 transition-opacity"
+              >
+                Buy ₹{INTERVIEW_ADDON_PRICE.inr}
+              </Link>
+              <Link
+                href="/pricing"
+                className="px-4 py-2 rounded-lg text-xs font-medium bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors subtle-border"
+              >
+                Upgrade
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
 
       {sessions.length === 0 ? (
         <div className="rounded-xl bg-surface-container-low subtle-border p-16 text-center">

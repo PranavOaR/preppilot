@@ -5,7 +5,6 @@ import {
   buildFollowUpPrompt,
 } from "@/lib/groq/interview-prompts";
 import { GROQ_MODELS } from "@/lib/groq/models";
-import { checkAndIncrementUsage } from "@/lib/plans/usage";
 import type { InterviewType, InterviewQA } from "@/lib/types/interview";
 
 let _groq: Groq | null = null;
@@ -23,7 +22,6 @@ export async function POST(req: NextRequest) {
       totalQuestions,
       previousQAs,
       followUp,
-      userId,
     } = (await req.json()) as {
       type: InterviewType;
       targetCompany: string;
@@ -31,23 +29,7 @@ export async function POST(req: NextRequest) {
       totalQuestions: number;
       previousQAs: InterviewQA[];
       followUp?: { originalQuestion: string; userAnswer: string; score: number };
-      userId?: string;
     };
-
-    // Check interview quota on first question (not on follow-ups)
-    if (!followUp && questionIndex === 0 && userId) {
-      const check = await checkAndIncrementUsage(userId, "interview");
-      if (!check.allowed) {
-        return NextResponse.json(
-          {
-            error: "limit_reached",
-            message: `You've used your interview for this period on the ${check.plan} plan. Upgrade for more.`,
-            plan: check.plan,
-          },
-          { status: 429 }
-        );
-      }
-    }
 
     let prompt: string;
     if (followUp) {

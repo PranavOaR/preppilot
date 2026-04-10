@@ -33,6 +33,9 @@ export const PLAN_PRICES: Record<Exclude<PlanTier, "free">, { paise: number; inr
   premium: { paise: 99900, inr: 999, label: "₹999/year" },
 };
 
+/** Pay-per-interview add-on: one extra interview credit purchased à la carte. */
+export const INTERVIEW_ADDON_PRICE = { paise: 4900, inr: 49, label: "₹49/interview" };
+
 export function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;

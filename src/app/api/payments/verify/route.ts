@@ -4,14 +4,15 @@ import type { PlanTier } from "@/lib/types/plans";
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, paymentId, signature, plan } = (await req.json()) as {
+    const { orderId, paymentId, signature, plan, type } = (await req.json()) as {
       orderId: string;
       paymentId: string;
       signature: string;
-      plan: Exclude<PlanTier, "free">;
+      plan?: Exclude<PlanTier, "free">;
+      type?: "interview_addon";
     };
 
-    if (!orderId || !paymentId || !signature || !plan) {
+    if (!orderId || !paymentId || !signature) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
@@ -29,7 +30,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid payment signature." }, { status: 400 });
     }
 
-    // Signature valid — return plan + expiry for the client to write to Firestore
+    // Interview add-on purchase
+    if (type === "interview_addon") {
+      return NextResponse.json({ success: true, type: "interview_addon" });
+    }
+
+    // Plan upgrade purchase
+    if (!plan) {
+      return NextResponse.json({ error: "Missing plan." }, { status: 400 });
+    }
     const planExpiresAt = Date.now() + 365 * 24 * 60 * 60 * 1000;
     return NextResponse.json({ success: true, plan, planExpiresAt });
   } catch (err) {

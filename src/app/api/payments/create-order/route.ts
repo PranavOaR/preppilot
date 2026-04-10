@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PLAN_PRICES, type PlanTier } from "@/lib/types/plans";
+import { PLAN_PRICES, INTERVIEW_ADDON_PRICE, type PlanTier } from "@/lib/types/plans";
 
 export async function POST(req: NextRequest) {
   try {
-    const { plan } = (await req.json()) as { plan: Exclude<PlanTier, "free"> };
-
-    if (!plan || !(plan in PLAN_PRICES)) {
-      return NextResponse.json({ error: "Invalid plan." }, { status: 400 });
-    }
+    const body = (await req.json()) as
+      | { plan: Exclude<PlanTier, "free"> }
+      | { type: "interview_addon" };
 
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -19,8 +17,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { paise } = PLAN_PRICES[plan];
-    const receipt = `prepilot_${plan}_${Date.now()}`;
+    let amountPaise: number;
+    let receipt: string;
+
+    if ("type" in body && body.type === "interview_addon") {
+      amountPaise = INTERVIEW_ADDON_PRICE.paise;
+      receipt = `preppilot_interview_${Date.now()}`;
+    } else if ("plan" in body && body.plan && body.plan in PLAN_PRICES) {
+      amountPaise = PLAN_PRICES[body.plan].paise;
+      receipt = `preppilot_${body.plan}_${Date.now()}`;
+    } else {
+      return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+    }
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
 
@@ -31,7 +39,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Basic ${auth}`,
       },
       body: JSON.stringify({
-        amount: paise,
+        amount: amountPaise,
         currency: "INR",
         receipt,
         payment_capture: 1,

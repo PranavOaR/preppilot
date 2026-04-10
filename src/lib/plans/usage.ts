@@ -40,7 +40,8 @@ function freshUsage(stored: MonthlyUsage | undefined): MonthlyUsage {
 
 /**
  * Check whether an action is within plan limits, then increment the counter.
- * Returns { allowed: false } without incrementing if the limit is reached.
+ * For interviews: if the plan quota is exhausted, falls back to purchasedInterviews credit.
+ * Returns { allowed: false } without incrementing if both quota and credits are exhausted.
  */
 export async function checkAndIncrementUsage(
   userId: string,
@@ -72,19 +73,34 @@ export async function checkAndIncrementUsage(
       limit = limits.interviews;
       field = "interviewsLifetime";
     }
+
+    if (current >= limit) {
+      // Fall back to purchased interview credits
+      const purchased = (data.purchasedInterviews as number) || 0;
+      if (purchased <= 0) {
+        return { allowed: false, remaining: 0, limit, plan };
+      }
+      // Consume one purchased credit
+      const updated: MonthlyUsage = { ...usage, [field]: current + 1 };
+      await updateDoc(userRef, {
+        usageThisMonth: updated,
+        purchasedInterviews: purchased - 1,
+      });
+      return { allowed: true, remaining: purchased - 1, limit, plan };
+    }
   } else {
     const actionMap: Record<Exclude<UsageAction, "interview">, { field: keyof MonthlyUsage; limit: number }> = {
-      dsaRun:     { field: "dsaRuns",   limit: limits.dsaRuns },
+      dsaRun:     { field: "dsaRuns",    limit: limits.dsaRuns },
       dsaSubmit:  { field: "dsaSubmits", limit: limits.dsaSubmits },
-      aiHint:     { field: "aiHints",   limit: limits.aiHints },
+      aiHint:     { field: "aiHints",    limit: limits.aiHints },
       codeReview: { field: "codeReviews", limit: limits.codeReviews },
     };
     ({ field, limit } = actionMap[action as Exclude<UsageAction, "interview">]);
     current = usage[field] as number;
-  }
 
-  if (current >= limit) {
-    return { allowed: false, remaining: 0, limit, plan };
+    if (current >= limit) {
+      return { allowed: false, remaining: 0, limit, plan };
+    }
   }
 
   // Increment
@@ -99,13 +115,15 @@ export async function getUsage(userId: string): Promise<{
   plan: PlanTier;
   usage: MonthlyUsage;
   limits: typeof PLAN_LIMITS[PlanTier];
+  purchasedInterviews: number;
 }> {
   const snap = await getDoc(doc(db, "users", userId));
   if (!snap.exists()) {
-    return { plan: "free", usage: emptyUsage(), limits: PLAN_LIMITS.free };
+    return { plan: "free", usage: emptyUsage(), limits: PLAN_LIMITS.free, purchasedInterviews: 0 };
   }
   const data = snap.data();
   const plan = effectivePlan(data.plan, data.planExpiresAt);
   const usage = freshUsage(data.usageThisMonth as MonthlyUsage | undefined);
-  return { plan, usage, limits: PLAN_LIMITS[plan] };
+  const purchasedInterviews = (data.purchasedInterviews as number) || 0;
+  return { plan, usage, limits: PLAN_LIMITS[plan], purchasedInterviews };
 }
