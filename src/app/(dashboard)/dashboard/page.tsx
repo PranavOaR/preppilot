@@ -174,7 +174,7 @@ export default function DashboardPage() {
   const dailyProgress = Math.min((todaySolved / dailyGoal) * 100, 100);
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <main className="max-w-7xl mx-auto px-6 py-8 space-y-8 animate-fade-in-up">
       {/* Onboarding for new users */}
       {profile && !profile.onboardingCompleted && !authLoading && (
         <OnboardingModal />
@@ -193,18 +193,25 @@ export default function DashboardPage() {
                 : `${dailyGoal - todaySolved} more to hit today's goal.`}
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-low">
-            <span className="material-symbols-outlined text-[20px] text-orange-400">local_fire_department</span>
-            <span className="text-on-surface font-mono text-sm font-semibold">{profile.currentStreak || 0}</span>
-            <span className="text-on-surface-variant text-xs">day streak</span>
+        {dataLoading ? (
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-28 rounded-lg bg-surface-container-low animate-pulse" />
+            <div className="h-10 w-24 rounded-lg bg-surface-container-low animate-pulse" />
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-low">
-            <span className="material-symbols-outlined text-[20px] text-primary-brand">bolt</span>
-            <span className="text-on-surface font-mono text-sm font-semibold">{(profile.xp || 0).toLocaleString()}</span>
-            <span className="text-on-surface-variant text-xs">XP</span>
+        ) : (
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-low">
+              <span className="material-symbols-outlined text-[20px] text-orange-400">local_fire_department</span>
+              <span className="text-on-surface font-mono text-sm font-semibold">{profile.currentStreak || 0}</span>
+              <span className="text-on-surface-variant text-xs">day streak</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-low">
+              <span className="material-symbols-outlined text-[20px] text-primary-brand">bolt</span>
+              <span className="text-on-surface font-mono text-sm font-semibold">{(profile.xp || 0).toLocaleString()}</span>
+              <span className="text-on-surface-variant text-xs">XP</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Daily Goal Progress Bar */}
@@ -500,9 +507,16 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : recentSubmissions.length === 0 ? (
-              <p className="text-on-surface-variant text-xs rounded-lg bg-surface-container-low p-4">
-                No activity yet. Start solving!
-              </p>
+              <div className="rounded-xl bg-surface-container-low p-6 text-center">
+                <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center mx-auto">
+                  <span className="material-symbols-outlined text-outline text-[20px]">history</span>
+                </div>
+                <p className="text-on-surface text-xs font-medium mt-3">No activity yet</p>
+                <p className="text-on-surface-variant text-[10px] mt-1">Solve your first problem to see it here</p>
+                <Link href="/practice" className="inline-block mt-3 text-xs text-primary-brand hover:underline">
+                  Start practicing →
+                </Link>
+              </div>
             ) : (
               <div className="space-y-2">
                 {recentSubmissions.map((sub) => {
@@ -517,9 +531,14 @@ export default function DashboardPage() {
                           {sub.submittedAt ? formatRelativeTime(sub.submittedAt.seconds) : ""}
                         </p>
                       </div>
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${
-                        sub.status === "accepted" ? "bg-green-400" : "bg-error-brand"
-                      }`} />
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
+                        sub.status === "accepted" ? "bg-green-400/15 text-green-400" : "bg-error-brand/15 text-error-brand"
+                      }`}>
+                        <span className="material-symbols-outlined text-[10px]">
+                          {sub.status === "accepted" ? "check_circle" : "cancel"}
+                        </span>
+                        {sub.status === "accepted" ? "Accepted" : "Failed"}
+                      </span>
                     </>
                   );
                   return slug ? (

@@ -193,12 +193,21 @@ export default function PricingPage() {
             <div
               key={tier}
               className={`relative flex flex-col rounded-2xl p-6 space-y-5 subtle-border ${
+                isCurrent
+                  ? "ring-1 ring-primary-brand/40"
+                  : ""
+              } ${
                 highlight
                   ? "bg-primary-container/10 border-primary-brand/40"
                   : "bg-surface-container-low"
               }`}
             >
-              {badge && (
+              {isCurrent && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-high text-primary-brand border border-primary-brand/30 whitespace-nowrap">
+                  Your current plan
+                </span>
+              )}
+              {!isCurrent && badge && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-semibold gradient-primary text-on-primary whitespace-nowrap">
                   {badge}
                 </span>

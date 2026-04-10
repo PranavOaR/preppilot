@@ -127,10 +127,10 @@ export function TopNav() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  className={`flex items-center gap-2 px-3 py-2 text-sm transition-all duration-150 ${
                     isActive
-                      ? "bg-surface-container-high text-on-surface"
-                      : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+                      ? "border-b-2 border-primary-brand text-on-surface"
+                      : "rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
                   }`}
                 >
                   <span className="material-symbols-outlined text-[18px]">
@@ -148,7 +148,7 @@ export function TopNav() {
           {isAdmin && (
             <Link
               href="/admin"
-              className={`hidden md:block p-2 transition-colors ${
+              className={`hidden md:block p-2 transition-all duration-150 cursor-pointer ${
                 pathname.startsWith("/admin")
                   ? "text-primary-brand"
                   : "text-outline hover:text-on-surface-variant"
@@ -163,7 +163,7 @@ export function TopNav() {
 
           <Link
             href="/settings"
-            className="hidden md:block p-2 text-outline hover:text-on-surface-variant transition-colors"
+            className="hidden md:block p-2 text-outline hover:text-on-surface-variant transition-all duration-150 cursor-pointer"
           >
             <span className="material-symbols-outlined text-[20px]">
               settings

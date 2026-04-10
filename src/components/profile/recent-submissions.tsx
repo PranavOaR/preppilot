@@ -73,12 +73,15 @@ export function RecentSubmissions({ submissions }: RecentSubmissionsProps) {
 
           <div className="flex items-center gap-3 flex-shrink-0">
             <span
-              className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+              className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
                 sub.status === "accepted"
                   ? "bg-green-400/15 text-green-400"
                   : "bg-error-brand/15 text-error-brand"
               }`}
             >
+              <span className="material-symbols-outlined text-[12px]">
+                {sub.status === "accepted" ? "check_circle" : sub.status === "time_limit_exceeded" ? "timer_off" : sub.status === "compile_error" ? "error" : "cancel"}
+              </span>
               {formatStatus(sub.status)}
             </span>
             <span className="text-outline text-xs font-mono uppercase">

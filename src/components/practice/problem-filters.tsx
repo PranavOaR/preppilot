@@ -31,9 +31,17 @@ interface ProblemFiltersProps {
     company?: string;
     topic?: string;
   }) => void;
+  resultCount?: number;
+  totalCount?: number;
 }
 
-export function ProblemFilters({ filters, onFilterChange }: ProblemFiltersProps) {
+export function ProblemFilters({ filters, onFilterChange, resultCount, totalCount }: ProblemFiltersProps) {
+  const hasActiveFilters = !!(filters.type || filters.difficulty || filters.company || filters.topic);
+
+  function clearAll() {
+    onFilterChange({});
+  }
+
   return (
     <div className="space-y-4">
       {/* Category Tabs */}
@@ -99,13 +107,31 @@ export function ProblemFilters({ filters, onFilterChange }: ProblemFiltersProps)
         {filters.topic && (
           <button
             onClick={() => onFilterChange({ ...filters, topic: undefined })}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-tertiary-container/30 text-tertiary cursor-pointer hover:bg-tertiary-container/50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-tertiary-container/30 text-tertiary cursor-pointer hover:bg-tertiary-container/50 transition-colors duration-150"
           >
             Topic: {filters.topic.replace(/-/g, " ")}
             <span className="material-symbols-outlined text-[14px]">close</span>
           </button>
         )}
+
+        {/* Clear all filters */}
+        {hasActiveFilters && (
+          <button
+            onClick={clearAll}
+            className="flex items-center gap-1 text-xs text-primary-brand hover:underline cursor-pointer transition-colors duration-150 ml-auto"
+          >
+            <span className="material-symbols-outlined text-[14px]">close</span>
+            Clear filters
+          </button>
+        )}
       </div>
+
+      {/* Result count */}
+      {resultCount !== undefined && totalCount !== undefined && (
+        <p className="text-on-surface-variant text-xs">
+          Showing <span className="text-on-surface font-medium">{resultCount}</span> of <span className="text-on-surface font-medium">{totalCount}</span> problems
+        </p>
+      )}
     </div>
   );
 }

@@ -88,7 +88,7 @@ export default function AdminProblemsPage() {
           </span>
         </div>
       ) : (
-        <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+        <div className="rounded-xl bg-surface-container-low subtle-border overflow-hidden">
           <div className="overflow-x-auto">
           <table className="w-full min-w-[560px]">
             <thead>

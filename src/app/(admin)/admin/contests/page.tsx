@@ -67,14 +67,14 @@ export default function AdminContestsPage() {
           </span>
         </div>
       ) : contests.length === 0 ? (
-        <div className="rounded-lg bg-surface-container-low subtle-border p-12 text-center">
+        <div className="rounded-xl bg-surface-container-low subtle-border p-12 text-center">
           <span className="material-symbols-outlined text-[48px] text-outline mb-3 block">
             emoji_events
           </span>
           <p className="text-on-surface-variant text-sm">No contests yet. Create your first one!</p>
         </div>
       ) : (
-        <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+        <div className="rounded-xl bg-surface-container-low subtle-border overflow-hidden">
           <div className="overflow-x-auto">
           <table className="w-full min-w-[540px]">
             <thead>

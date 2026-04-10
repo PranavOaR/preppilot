@@ -183,7 +183,7 @@ export default function ProfilePage() {
     : "Recently";
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <main className="max-w-7xl mx-auto px-6 py-8 space-y-8 animate-fade-in-up">
       {/* Page Title */}
       <h1 className="font-serif text-3xl text-on-surface font-medium tracking-tight">
         Profile

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { ProblemFilters } from "@/components/practice/problem-filters";
 import { RecommendedProblem } from "@/components/practice/recommended-problem";
@@ -14,6 +14,7 @@ function PracticeContent() {
     company?: string;
     topic?: string;
   }>({});
+  const [resultCount, setResultCount] = useState<number | undefined>(undefined);
 
   // Initialize filters from URL params (e.g. from roadmap links)
   useEffect(() => {
@@ -25,23 +26,31 @@ function PracticeContent() {
     if (type || topic) setFilters(initial);
   }, [searchParams]);
 
+  const handleCountChange = useCallback((count: number) => {
+    setResultCount(count);
+  }, []);
+
   return (
     <>
       {/* Filters */}
-      <ProblemFilters filters={filters} onFilterChange={setFilters} />
+      <ProblemFilters
+        filters={filters}
+        onFilterChange={(f) => { setFilters(f); setResultCount(undefined); }}
+        resultCount={resultCount}
+      />
 
       {/* Recommended Problem */}
       <RecommendedProblem />
 
       {/* Problems Table */}
-      <ProblemsTable filters={filters} />
+      <ProblemsTable filters={filters} onCountChange={handleCountChange} />
     </>
   );
 }
 
 export default function PracticePage() {
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-fade-in-up">
       {/* Header */}
       <div>
         <h1 className="font-serif text-2xl sm:text-3xl text-on-surface font-medium tracking-tight">

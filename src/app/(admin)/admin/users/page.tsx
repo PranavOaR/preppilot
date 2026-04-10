@@ -261,7 +261,7 @@ export default function AdminUsersPage() {
             </div>
           )}
 
-          <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+          <div className="rounded-xl bg-surface-container-low subtle-border overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant/10 gap-2">
             <span className="text-on-surface-variant text-xs">{filtered.length} users shown</span>
             <button

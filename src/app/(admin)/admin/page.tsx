@@ -155,7 +155,7 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {statCards.map((card) => {
           const inner = (
-            <div className="rounded-lg bg-surface-container-low subtle-border p-5 hover:bg-surface-container transition-colors h-full">
+            <div className="rounded-xl bg-surface-container-low subtle-border p-5 hover:bg-surface-container transition-colors h-full">
               <div className="flex items-center justify-between mb-3">
                 <span className={`material-symbols-outlined text-[24px] ${card.color}`}>
                   {card.icon}
@@ -188,7 +188,7 @@ export default function AdminDashboardPage() {
               <Link
                 key={plan}
                 href={`/admin/users?plan=${plan}`}
-                className="rounded-lg bg-surface-container-low subtle-border p-4 hover:bg-surface-container transition-colors"
+                className="rounded-xl bg-surface-container-low subtle-border p-4 hover:bg-surface-container transition-colors"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-xs font-medium uppercase ${PLAN_COLORS[plan]}`}>
@@ -226,7 +226,7 @@ export default function AdminDashboardPage() {
               Manage
             </Link>
           </div>
-          <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+          <div className="rounded-xl bg-surface-container-low subtle-border overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[500px]">
               <thead>
@@ -294,7 +294,7 @@ export default function AdminDashboardPage() {
         {recentSubmissions.length === 0 ? (
           <p className="text-on-surface-variant text-sm">No submissions yet.</p>
         ) : (
-          <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
+          <div className="rounded-xl bg-surface-container-low subtle-border overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[480px]">
               <thead>

@@ -20,9 +20,10 @@ interface ProblemsTableProps {
     company?: string;
     topic?: string;
   };
+  onCountChange?: (count: number) => void;
 }
 
-export function ProblemsTable({ filters }: ProblemsTableProps) {
+export function ProblemsTable({ filters, onCountChange }: ProblemsTableProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [problems, setProblems] = useState<Problem[]>([]);
@@ -76,6 +77,7 @@ export function ProblemsTable({ filters }: ProblemsTableProps) {
         setProblems(result.problems);
         setLastDocId(result.lastDocId);
         setHasMore(result.hasMore);
+        onCountChange?.(result.problems.length);
       } catch (err) {
         console.error("Failed to fetch problems:", err);
       } finally {
@@ -165,11 +167,12 @@ export function ProblemsTable({ filters }: ProblemsTableProps) {
 
   if (problems.length === 0) {
     return (
-      <div className="rounded-lg bg-surface-container-low subtle-border p-12 text-center">
-        <span className="material-symbols-outlined text-outline text-4xl">
-          search_off
-        </span>
-        <p className="text-on-surface-variant text-sm mt-3">No problems match your filters.</p>
+      <div className="rounded-xl bg-surface-container-low subtle-border p-12 text-center">
+        <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mx-auto">
+          <span className="material-symbols-outlined text-outline text-3xl">search_off</span>
+        </div>
+        <p className="text-on-surface text-sm font-medium mt-4">No problems found</p>
+        <p className="text-on-surface-variant text-xs mt-1">Try adjusting or clearing your filters.</p>
       </div>
     );
   }

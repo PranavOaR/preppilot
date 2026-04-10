@@ -101,7 +101,7 @@ export default function InterviewHistoryPage() {
   const isExhausted = totalAvailable === 0;
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+    <main className="max-w-4xl mx-auto px-6 py-8 space-y-6 animate-fade-in-up">
       <div className="flex items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-serif text-2xl text-on-surface font-medium">Mock Interviews</h1>
