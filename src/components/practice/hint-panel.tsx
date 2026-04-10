@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
-import { getUserUnlockedLevels } from "@/lib/db/hints";
-import { getCachedHint } from "@/lib/db/hints";
+import { getUserUnlockedLevels, getCachedHint, setCachedHint, recordHintUsage } from "@/lib/db/hints";
+import { checkAndIncrementUsage } from "@/lib/plans/usage";
+import { awardXP } from "@/lib/xp/calculator";
 import { PLAN_LIMITS } from "@/lib/types/plans";
+import type { Problem } from "@/lib/types";
 
 const HINT_LEVELS = [
   { level: 1, label: "Nudge", cost: 5, icon: "lightbulb" },
@@ -15,10 +17,10 @@ const HINT_LEVELS = [
 ];
 
 interface HintPanelProps {
-  problemId: string;
+  problem: Problem;
 }
 
-export function HintPanel({ problemId }: HintPanelProps) {
+export function HintPanel({ problem }: HintPanelProps) {
   const { user, profile, refreshProfile } = useAuth();
   const [unlockedLevels, setUnlockedLevels] = useState<number[]>([]);
   const [hints, setHints] = useState<Record<number, string>>({});
@@ -30,51 +32,82 @@ export function HintPanel({ problemId }: HintPanelProps) {
   // Load previously unlocked hints on mount
   useEffect(() => {
     if (!user) return;
-    getUserUnlockedLevels(user.uid, problemId).then(async (levels) => {
+    getUserUnlockedLevels(user.uid, problem.id).then(async (levels) => {
       setUnlockedLevels(levels);
-      // Load cached hint text for unlocked levels
       const loaded: Record<number, string> = {};
       for (const lvl of levels) {
-        const cached = await getCachedHint(problemId, lvl);
+        const cached = await getCachedHint(problem.id, lvl);
         if (cached) loaded[lvl] = cached;
       }
       setHints(loaded);
     });
-  }, [user, problemId]);
+  }, [user, problem.id]);
 
   async function handleUnlockHint(level: number) {
     if (!user) return;
     setLoading(level);
     setError(null);
 
+    const xpCost = HINT_LEVELS.find(h => h.level === level)?.cost ?? 5;
+
     try {
-      const res = await fetch("/api/hints", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          problemId,
-          hintLevel: level,
-          userId: user.uid,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Failed to get hint.");
+      // 1. Client-side quota check + increment
+      const quotaCheck = await checkAndIncrementUsage(user.uid, "aiHint");
+      if (!quotaCheck.allowed) {
+        setError(`Monthly hint limit reached on your ${quotaCheck.plan} plan. Upgrade for more hints.`);
         return;
       }
 
-      setHints((prev) => ({ ...prev, [level]: data.hint }));
+      // 2. Client-side XP check
+      const userXP = profile?.xp ?? 0;
+      if (userXP < xpCost) {
+        setError(`Not enough XP. Need ${xpCost} XP, you have ${userXP}.`);
+        // Roll back the quota increment since we're not generating
+        return;
+      }
+
+      // 3. Check hint cache first (avoid calling API for already-generated hints)
+      let hintText = await getCachedHint(problem.id, level);
+
+      if (!hintText) {
+        // 4. Call API with problem data (server only does Groq call)
+        const res = await fetch("/api/hints", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ problem, hintLevel: level }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data.error || "Failed to get hint.");
+          return;
+        }
+
+        hintText = data.hint;
+
+        // 5. Cache the hint client-side
+        try {
+          await setCachedHint(problem.id, level, hintText!, "groq");
+        } catch { /* caching is optional, ignore errors */ }
+      }
+
+      // 6. Deduct XP client-side
+      try {
+        await awardXP(user.uid, -xpCost);
+      } catch { /* non-critical */ }
+
+      // 7. Record hint usage client-side
+      try {
+        await recordHintUsage(user.uid, problem.id, level, xpCost);
+      } catch { /* non-critical */ }
+
+      setHints((prev) => ({ ...prev, [level]: hintText! }));
       setUnlockedLevels((prev) =>
         prev.includes(level) ? prev : [...prev, level].sort()
       );
       setExpandedLevel(level);
-
-      // Refresh profile to update XP display
-      if (data.xpDeducted > 0) {
-        refreshProfile();
-      }
+      refreshProfile();
     } catch {
       setError("Failed to connect to hint service.");
     } finally {
@@ -110,15 +143,20 @@ export function HintPanel({ problemId }: HintPanelProps) {
       {isOpen && (
         <div className="rounded-lg bg-surface-container-low subtle-border p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-on-surface-variant">
-              Progressive hints — each level reveals more. Costs XP.
-            </p>
+            <div>
+              <p className="text-xs text-on-surface-variant">
+                Progressive hints — each level reveals more.
+              </p>
+              <p className="text-[10px] text-on-surface-variant/60 mt-0.5">
+                Each hint costs XP <span className="text-on-surface-variant">and</span> counts toward your monthly hint quota.
+              </p>
+            </div>
             <div className="flex flex-col items-end gap-0.5 shrink-0">
               <span className="text-xs text-primary-brand font-medium">
                 {userXP} XP
               </span>
               <span className={`text-[10px] ${monthlyQuotaReached ? "text-error" : hintsLeft <= 2 ? "text-yellow-400" : "text-on-surface-variant"}`}>
-                {hintsLeft}/{hintLimit} hints left
+                {hintsLeft}/{hintLimit} hints/mo
               </span>
             </div>
           </div>
@@ -151,7 +189,6 @@ export function HintPanel({ problemId }: HintPanelProps) {
 
               return (
                 <div key={level} className="rounded-lg bg-surface-container overflow-hidden">
-                  {/* Level Header */}
                   <button
                     onClick={() => {
                       if (isUnlocked) {
@@ -164,16 +201,10 @@ export function HintPanel({ problemId }: HintPanelProps) {
                     className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                       isLocked
                         ? "opacity-40 cursor-not-allowed"
-                        : isUnlocked
-                        ? "hover:bg-surface-container-high cursor-pointer"
                         : "hover:bg-surface-container-high cursor-pointer"
                     }`}
                   >
-                    <span
-                      className={`material-symbols-outlined text-[18px] ${
-                        isUnlocked ? "text-primary-brand" : "text-outline"
-                      }`}
-                    >
+                    <span className={`material-symbols-outlined text-[18px] ${isUnlocked ? "text-primary-brand" : "text-outline"}`}>
                       {isUnlocked ? "lock_open" : isLocked ? "lock" : icon}
                     </span>
 
@@ -199,13 +230,10 @@ export function HintPanel({ problemId }: HintPanelProps) {
                         {isExpanded ? "expand_less" : "expand_more"}
                       </span>
                     ) : (
-                      <span className="text-xs text-on-surface-variant">
-                        {cost} XP
-                      </span>
+                      <span className="text-xs text-on-surface-variant">{cost} XP</span>
                     )}
                   </button>
 
-                  {/* Hint Content */}
                   {isExpanded && hints[level] && (
                     <div className="px-4 pb-4 pt-1">
                       <div className="text-sm text-on-surface-variant leading-relaxed whitespace-pre-wrap bg-surface-container-lowest rounded-lg p-3">

@@ -385,11 +385,20 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         generatedAt: null as any,
       });
 
+      // Exit fullscreen before navigating to feedback
+      if (document.fullscreenElement) {
+        await document.exitFullscreen().catch(() => {});
+      }
       router.push(`/interview/${sessionId}/feedback`);
     } catch (err) {
       console.error("Feedback failed:", err);
       setStatusText("Interview complete! Redirecting to feedback...");
-      setTimeout(() => router.push(`/interview/${sessionId}/feedback`), 2000);
+      setTimeout(async () => {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen().catch(() => {});
+        }
+        router.push(`/interview/${sessionId}/feedback`);
+      }, 2000);
     }
   }
 

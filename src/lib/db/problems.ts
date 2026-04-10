@@ -64,14 +64,16 @@ export async function getProblems(filters: ProblemFilters = {}) {
   // Sort by title
   problems.sort((a, b) => a.title.localeCompare(b.title));
 
-  // Paginate
+  // Paginate using offset (lastDocId stores the string-encoded offset)
   const pageSize = filters.pageSize || 50;
-  const paginated = problems.slice(0, pageSize);
+  const offset = filters.lastDocId ? parseInt(filters.lastDocId, 10) : 0;
+  const paginated = problems.slice(offset, offset + pageSize);
+  const nextOffset = offset + pageSize;
 
   return {
     problems: paginated,
-    lastDocId: null,
-    hasMore: problems.length > pageSize,
+    lastDocId: nextOffset < problems.length ? String(nextOffset) : null,
+    hasMore: nextOffset < problems.length,
   };
 }
 

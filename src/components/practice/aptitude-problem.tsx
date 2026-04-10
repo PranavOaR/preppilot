@@ -222,7 +222,7 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
       )}
 
       {/* AI Hints */}
-      {!result && <HintPanel problemId={problem.id} />}
+      {!result && <HintPanel problem={problem} />}
 
       {/* Options */}
       <div className="space-y-3">

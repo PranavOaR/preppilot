@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { getProblemBySlug } from "@/lib/db/problems";
@@ -72,6 +72,9 @@ export default function ProblemPage() {
   const [activeTab, setActiveTab] = useState<"editor" | "results">("editor");
   const [mobilePanelTab, setMobilePanelTab] = useState<"description" | "code">("description");
   const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [runCooldown, setRunCooldown] = useState(0); // seconds remaining in cooldown
+  const lastRunCodeRef = useRef<string>(""); // code that was last run
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [lastSubmit, setLastSubmit] = useState<{
     code: string;
     language: "python" | "c" | "cpp" | "java";
@@ -174,10 +177,36 @@ export default function ProblemPage() {
       setSummary({ total: 1, passed: 0, allPassed: false, mode: "run" });
     } finally {
       setRunning(false);
+      // Start 15-second cooldown (unlocks immediately if code changes)
+      lastRunCodeRef.current = code;
+      setRunCooldown(15);
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = setInterval(() => {
+        setRunCooldown((prev) => {
+          if (prev <= 1) {
+            if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
       // Refresh usage counts after a run
       if (user) refreshProfile();
     }
   }
+
+  // Cancel cooldown if code changes
+  useEffect(() => {
+    if (runCooldown > 0 && code !== lastRunCodeRef.current) {
+      setRunCooldown(0);
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    }
+  }, [code, runCooldown]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => { if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current); };
+  }, []);
 
   async function handleSubmit() {
     if (!problem) return;
@@ -433,7 +462,7 @@ export default function ProblemPage() {
               </div>
             )}
 
-            <HintPanel problemId={problem.id} />
+            <HintPanel problem={problem} />
 
             {/* Resources Panel */}
             <div className="space-y-2">
@@ -662,13 +691,19 @@ export default function ProblemPage() {
                 <Button
                   variant="ghost"
                   onClick={handleRun}
-                  disabled={running || submitting || !code.trim()}
+                  disabled={running || submitting || !code.trim() || runCooldown > 0}
+                  title={runCooldown > 0 ? `Edit code to run again, or wait ${runCooldown}s` : undefined}
                   className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high text-sm h-9 cursor-pointer disabled:opacity-40"
                 >
                   {running ? (
                     <>
                       <span className="material-symbols-outlined text-[16px] mr-1 animate-spin">progress_activity</span>
                       Running...
+                    </>
+                  ) : runCooldown > 0 ? (
+                    <>
+                      <span className="material-symbols-outlined text-[16px] mr-1">timer</span>
+                      {runCooldown}s
                     </>
                   ) : (
                     <>

@@ -299,6 +299,122 @@ function wrapCppSolution(code: string): string | null {
 }
 
 /**
+ * Auto-wrap a simple C function (no main) for Judge0.
+ * Handles primitive return types: int, long, bool, double, float.
+ * For array returns/params (int*, char*), falls back gracefully.
+ */
+function wrapCSolution(code: string): string | null {
+  if (/\bint\s+main\b/.test(code)) return null;
+
+  // Match first non-static function that looks like a LeetCode fn
+  const sigMatch = code.match(
+    /^(?:static\s+)?(\w[\w\s*]*?)\s+(\w+)\s*\(([^)]*)\)\s*\{/m
+  );
+  if (!sigMatch) return null;
+
+  const retType = sigMatch[1].trim().replace(/\s+/g, " ");
+  const method = sigMatch[2].trim();
+  const paramsStr = sigMatch[3].trim();
+  if (method === "main") return null;
+
+  interface CP { type: string; name: string }
+  const params: CP[] = [];
+  if (paramsStr) {
+    for (const raw of paramsStr.split(",")) {
+      const t = raw.trim();
+      const nm = t.match(/(\w+)\s*(?:\[\])*\s*$/)?.[1];
+      if (!nm) continue;
+      const typ = t.slice(0, t.lastIndexOf(nm)).replace(/\s+/g, " ").trim();
+      params.push({ type: typ, name: nm });
+    }
+  }
+
+  const readings: string[] = [];
+  const args: string[] = [];
+  let extraDecls = "";
+  let arrayHelpers = "";
+  let needsArrayHelper = false;
+
+  for (const { type, name } of params) {
+    const v = `_${name}`;
+    if (type === "int") {
+      readings.push(`int ${v}; scanf("%d", &${v});`);
+      args.push(v);
+    } else if (type === "long" || type === "long long") {
+      readings.push(`long long ${v}; scanf("%lld", &${v});`);
+      args.push(v);
+    } else if (type === "double") {
+      readings.push(`double ${v}; scanf("%lf", &${v});`);
+      args.push(v);
+    } else if (type === "bool" || type === "_Bool") {
+      readings.push(`char _${name}_s[8]; scanf("%s", _${name}_s); int ${v}=(strcmp(_${name}_s,"true")==0);`);
+      args.push(v);
+    } else if (type === "int*" || type === "int *") {
+      needsArrayHelper = true;
+      extraDecls += `int ${v}_arr[1024]; int ${v}_sz=0;\n    `;
+      readings.push(`_parseIntArr(${v}_arr, &${v}_sz);`);
+      args.push(v + "_arr");
+      // Find the size param (next int param after this)
+      const sizeParam = params.find(p => (p.type === "int") && p.name !== name && !args.includes(`_${p.name}`));
+      if (sizeParam) {
+        extraDecls += `int _${sizeParam.name}=${v}_sz;\n    `;
+        args.push(`_${sizeParam.name}`);
+        params.splice(params.indexOf(sizeParam), 1); // skip it in outer loop
+      }
+    } else if (type === "char*" || type === "char *") {
+      extraDecls += `char ${v}[1024];\n    `;
+      readings.push(`scanf("%s", ${v});`);
+      args.push(v);
+    } else {
+      return null; // unsupported type
+    }
+  }
+
+  if (needsArrayHelper) {
+    arrayHelpers = `
+void _parseIntArr(int* arr, int* sz) {
+    char line[4096]; fgets(line, sizeof(line), stdin);
+    // skip leading [
+    char* p=line; while(*p&&(*p=='['||*p==' '))p++;
+    *sz=0;
+    while(*p&&*p!=']'&&*p!='\\n'){
+        arr[(*sz)++]=atoi(p);
+        while(*p&&*p!=',' &&*p!=']')p++;
+        if(*p==',')p++;
+        while(*p==' ')p++;
+    }
+}
+`;
+  }
+
+  let printCall: string;
+  if (retType === "int") {
+    printCall = `printf("%d\\n", ${method}(${args.join(", ")}));`;
+  } else if (retType === "long" || retType === "long long") {
+    printCall = `printf("%lld\\n", ${method}(${args.join(", ")}));`;
+  } else if (retType === "bool" || retType === "_Bool") {
+    printCall = `printf("%s\\n", ${method}(${args.join(", ")}) ? "true" : "false");`;
+  } else if (retType === "double" || retType === "float") {
+    printCall = `printf("%.6f\\n", (double)${method}(${args.join(", ")}));`;
+  } else if (retType === "char*" || retType === "char *") {
+    printCall = `printf("%s\\n", ${method}(${args.join(", ")}));`;
+  } else if (retType === "void") {
+    printCall = `${method}(${args.join(", ")});`;
+  } else {
+    return null;
+  }
+
+  return `${arrayHelpers}
+${code}
+
+int main() {
+    ${extraDecls}${readings.join("\n    ")}
+    ${printCall}
+    return 0;
+}`;
+}
+
+/**
  * Auto-wrap a LeetCode-style Python Solution class into a runnable script.
  * Adds boilerplate: __future__ annotations, ListNode/TreeNode definitions,
  * input parsing helpers, and a main block that reads stdin + prints output.
@@ -462,7 +578,20 @@ function wrapJavaSolution(code: string): string | null {
   interface JP { type: string; name: string }
   const params: JP[] = [];
   if (paramsStr) {
-    for (const raw of paramsStr.split(",")) {
+    // Split params by commas NOT inside angle brackets (handles List<X,Y> generics)
+    const splitParams: string[] = [];
+    let depth = 0, cur = "";
+    for (const ch of paramsStr + ",") {
+      if (ch === "<") depth++;
+      else if (ch === ">") depth--;
+      if (ch === "," && depth === 0) {
+        if (cur.trim()) splitParams.push(cur.trim());
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    for (const raw of splitParams) {
       const t = raw.trim();
       const nm = t.match(/(\w+)\s*$/)?.[1];
       if (!nm) return null;
@@ -484,7 +613,7 @@ function wrapJavaSolution(code: string): string | null {
     } else if (type === "boolean") {
       readings.push(`boolean ${v}=sc.nextLine().trim().equals("true");`);
     } else if (type === "String") {
-      readings.push(`String ${v}=sc.nextLine().trim().replaceAll("^\"|\"$","");`);
+      readings.push(`String ${v}=sc.nextLine().trim().replaceAll("^\\\"|\\\"$","");`);
     } else if (type === "int[]") {
       readings.push(`int[] ${v}=_ia(sc.nextLine().trim());`);
     } else if (type === "int[][]") {
@@ -549,7 +678,7 @@ public class Main{
 static int[]_ia(String s){s=s.trim();if(s.equals("[]"))return new int[0];s=s.substring(1,s.length()-1);String[]p=s.split(",");int[]a=new int[p.length];for(int i=0;i<p.length;i++)a[i]=Integer.parseInt(p[i].trim());return a;}
 static int[][]_ia2(String s){s=s.trim();if(s.equals("[]"))return new int[0][];List<int[]>r=new ArrayList<>();int d=0,st=-1;for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c=='['){d++;if(d==2)st=i;}else if(c==']'){d--;if(d==1&&st!=-1){r.add(_ia(s.substring(st,i+1)));st=-1;}}}return r.toArray(new int[0][]);}
 static char[][]_ca2(String s){int[][]t=_ia2(s);char[][]r=new char[t.length][];for(int i=0;i<t.length;i++){r[i]=new char[t[i].length];for(int j=0;j<t[i].length;j++)r[i][j]=(char)('0'+t[i][j]);}return r;}
-static String[]_sa(String s){s=s.trim();if(s.equals("[]"))return new String[0];s=s.substring(1,s.length()-1);String[]p=s.split(",");for(int i=0;i<p.length;i++)p[i]=p[i].trim().replaceAll("^\"|\"$","");return p;}
+static String[]_sa(String s){s=s.trim();if(s.equals("[]"))return new String[0];s=s.substring(1,s.length()-1);String[]p=s.split(",");for(int i=0;i<p.length;i++)p[i]=p[i].trim().replaceAll("^\\\"|\\\"$","");return p;}
 static ListNode _bl(int[]a){if(a.length==0)return null;ListNode h=new ListNode(a[0]),c=h;for(int i=1;i<a.length;i++){c.next=new ListNode(a[i]);c=c.next;}return h;}
 static TreeNode _bt(String s){s=s.trim();if(s.equals("[]"))return null;s=s.substring(1,s.length()-1);String[]p=s.split(",");if(p[0].trim().equals("null"))return null;TreeNode root=new TreeNode(Integer.parseInt(p[0].trim()));Queue<TreeNode>q=new LinkedList<>();q.add(root);int i=1;while(!q.isEmpty()&&i<p.length){TreeNode nd=q.poll();if(i<p.length&&!p[i].trim().equals("null")){nd.left=new TreeNode(Integer.parseInt(p[i].trim()));q.add(nd.left);}i++;if(i<p.length&&!p[i].trim().equals("null")){nd.right=new TreeNode(Integer.parseInt(p[i].trim()));q.add(nd.right);}i++;}return root;}
 static String _ts(TreeNode root){if(root==null)return"[]";List<String>r=new ArrayList<>();Queue<TreeNode>q=new LinkedList<>();q.add(root);while(!q.isEmpty()){TreeNode nd=q.poll();if(nd!=null){r.add(String.valueOf(nd.val));q.add(nd.left);q.add(nd.right);}else r.add("null");}while(!r.isEmpty()&&r.get(r.size()-1).equals("null"))r.remove(r.size()-1);return"["+String.join(",",r)+"]";}
@@ -635,14 +764,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── C: require explicit main() ────────────────────────────────────────
+    // ── C: auto-wrap simple LeetCode-style functions ──────────────────────
     if (language === "c" && !/\bint\s+main\b/.test(processedCode)) {
-      const hint = "Your C code must have a `int main()` function that reads from stdin and prints to stdout.";
-      const stubResults = casesToRun.map((tc) => ({
-        input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: "",
-        passed: false, status: "Compile Error", time: null, memory: null, error: hint,
-      }));
-      return Response.json({ results: stubResults, summary: { total: stubResults.length, passed: 0, allPassed: false, mode } });
+      const wrapped = wrapCSolution(processedCode);
+      if (wrapped) {
+        processedCode = wrapped;
+      } else {
+        const hint = "Could not auto-wrap this C solution. Add an int main() that reads input from stdin and prints output to stdout.";
+        const stubResults = casesToRun.map((tc) => ({
+          input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: "",
+          passed: false, status: "Compile Error", time: null, memory: null, error: hint,
+        }));
+        return Response.json({ results: stubResults, summary: { total: stubResults.length, passed: 0, allPassed: false, mode } });
+      }
     }
 
     const results = await runAgainstTestCases(

@@ -11,6 +11,8 @@ import { RecentSubmissions } from "@/components/profile/recent-submissions";
 import type { Problem } from "@/lib/types";
 import { type PlanTier } from "@/lib/types/plans";
 import Link from "next/link";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 
 const PLAN_BADGE: Record<PlanTier, { label: string; className: string }> = {
   free:    { label: "FREE",    className: "bg-surface-container-high text-on-surface-variant" },
@@ -44,6 +46,10 @@ export default function ProfilePage() {
     total: 0, easy: 0, medium: 0, hard: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [globalRank, setGlobalRank] = useState<number | null>(null);
+  const [collegeRank, setCollegeRank] = useState<number | null>(null);
+  const [totalUsers, setTotalUsers] = useState<number>(0);
+  const [collegeUsers, setCollegeUsers] = useState<number>(0);
 
   useEffect(() => {
     if (!user) return;
@@ -110,6 +116,23 @@ export default function ProfilePage() {
           medium: allProblems.filter((p) => p.difficulty === "medium").length,
           hard: allProblems.filter((p) => p.difficulty === "hard").length,
         });
+        // Compute global + college rank
+        try {
+          const snap = await getDocs(collection(db, "users"));
+          const allUsers = snap.docs.map(d => ({ uid: d.id, xp: (d.data().xp as number) || 0, university: (d.data().university as string)?.trim() || "" }));
+          allUsers.sort((a, b) => b.xp - a.xp);
+          const myXP = profile?.xp ?? 0;
+          const grank = allUsers.findIndex(u => u.uid === user!.uid) + 1;
+          setGlobalRank(grank || null);
+          setTotalUsers(allUsers.length);
+          const uni = profile?.university?.trim();
+          if (uni) {
+            const sameCollege = allUsers.filter(u => u.university === uni);
+            const crank = sameCollege.findIndex(u => u.uid === user!.uid) + 1;
+            setCollegeRank(crank || null);
+            setCollegeUsers(sameCollege.length);
+          }
+        } catch { /* ranking is non-critical */ }
       } catch (err) {
         console.error("Failed to fetch profile data:", err);
       } finally {
@@ -118,7 +141,7 @@ export default function ProfilePage() {
     }
 
     fetchData();
-  }, [user]);
+  }, [user, profile?.xp, profile?.university]);
 
   if (!profile) {
     return (
@@ -254,6 +277,55 @@ export default function ProfilePage() {
           </p>
           <p className="text-on-surface-variant text-xs mt-0.5">Longest Streak</p>
         </div>
+      </div>
+
+      {/* Rankings Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Link
+          href="/leaderboard/colleges?tab=individuals"
+          className="glass-panel subtle-border rounded-xl px-5 py-4 flex items-center gap-4 hover:bg-surface-container transition-colors group"
+        >
+          <div className="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-primary-brand text-[20px]">public</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-on-surface-variant text-xs">Global Rank</p>
+            {globalRank ? (
+              <p className="text-on-surface font-semibold text-xl font-mono">
+                #{globalRank}
+                <span className="text-on-surface-variant text-xs font-normal ml-1.5">/ {totalUsers} users</span>
+              </p>
+            ) : (
+              <p className="text-on-surface-variant text-sm">Calculating...</p>
+            )}
+          </div>
+          <span className="material-symbols-outlined text-outline group-hover:text-on-surface-variant text-[18px] transition-colors">arrow_forward</span>
+        </Link>
+
+        <Link
+          href="/leaderboard/colleges"
+          className="glass-panel subtle-border rounded-xl px-5 py-4 flex items-center gap-4 hover:bg-surface-container transition-colors group"
+        >
+          <div className="w-10 h-10 rounded-full bg-tertiary-container/20 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-tertiary text-[20px]">school</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-on-surface-variant text-xs">College Rank</p>
+            {profile.university ? (
+              collegeRank ? (
+                <p className="text-on-surface font-semibold text-xl font-mono">
+                  #{collegeRank}
+                  <span className="text-on-surface-variant text-xs font-normal ml-1.5">/ {collegeUsers} at {profile.university}</span>
+                </p>
+              ) : (
+                <p className="text-on-surface-variant text-sm">Calculating...</p>
+              )
+            ) : (
+              <p className="text-on-surface-variant text-sm">Add your college in settings</p>
+            )}
+          </div>
+          <span className="material-symbols-outlined text-outline group-hover:text-on-surface-variant text-[18px] transition-colors">arrow_forward</span>
+        </Link>
       </div>
 
       {/* 2-Column: Donut + Recent Submissions */}
