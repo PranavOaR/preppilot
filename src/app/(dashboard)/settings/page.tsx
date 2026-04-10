@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/contexts/toast-context";
 import { updateUser } from "@/lib/db/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +22,19 @@ const languages = [
   { value: "java", label: "Java" },
 ];
 
+const semestersForYear: Record<number, number[]> = {
+  1: [1, 2],
+  2: [3, 4],
+  3: [5, 6],
+  4: [7, 8],
+};
+
 export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const [form, setForm] = useState({
     username: "",
@@ -54,6 +64,7 @@ export default function SettingsPage() {
     if (!user) return;
     setSaving(true);
     setSaved(false);
+    setSaveError("");
     try {
       await updateUser(user.uid, {
         username: form.username,
@@ -69,6 +80,9 @@ export default function SettingsPage() {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Failed to save settings:", err);
+      const message = err instanceof Error ? err.message : "Failed to save settings. Please try again.";
+      setSaveError(message);
+      showToast(message, "error");
     } finally {
       setSaving(false);
     }
@@ -148,7 +162,12 @@ export default function SettingsPage() {
             <select
               id="year"
               value={form.year}
-              onChange={(e) => setForm({ ...form, year: parseInt(e.target.value) })}
+              onChange={(e) => {
+                const newYear = parseInt(e.target.value);
+                const validSems = semestersForYear[newYear] || [1, 2];
+                const currentSemValid = validSems.includes(form.semester);
+                setForm({ ...form, year: newYear, semester: currentSemValid ? form.semester : validSems[0] });
+              }}
               className="w-full h-10 rounded-md bg-surface-container-lowest border border-outline-variant/20 text-on-surface text-sm px-3 outline-none focus:ring-1 focus:ring-primary-brand/40"
             >
               {[1, 2, 3, 4].map((y) => (
@@ -167,7 +186,7 @@ export default function SettingsPage() {
               onChange={(e) => setForm({ ...form, semester: parseInt(e.target.value) })}
               className="w-full h-10 rounded-md bg-surface-container-lowest border border-outline-variant/20 text-on-surface text-sm px-3 outline-none focus:ring-1 focus:ring-primary-brand/40"
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+              {(semestersForYear[form.year] || [1, 2]).map((s) => (
                 <option key={s} value={s}>Semester {s}</option>
               ))}
             </select>
@@ -264,6 +283,12 @@ export default function SettingsPage() {
           <span className="flex items-center gap-1.5 text-green-400 text-sm">
             <span className="material-symbols-outlined text-[18px]">check_circle</span>
             Saved successfully!
+          </span>
+        )}
+        {saveError && (
+          <span className="flex items-center gap-1.5 text-red-400 text-sm">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            {saveError}
           </span>
         )}
       </div>

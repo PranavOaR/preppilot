@@ -35,12 +35,13 @@ export default function CollegeLeaderboardPage() {
     async function load() {
       try {
         const snapshot = await getDocs(collection(db, "users"));
-        const collegeMap = new Map<string, { totalXp: number; count: number }>();
+        const collegeMap = new Map<string, { totalXp: number; count: number; displayName: string }>();
         const userList: UserRankData[] = [];
 
         snapshot.docs.forEach((doc) => {
           const data = doc.data();
           const university = (data.university as string)?.trim();
+          const normalizedUni = university?.toLowerCase();
           const xp = (data.xp as number) || 0;
 
           // Individual
@@ -55,16 +56,16 @@ export default function CollegeLeaderboardPage() {
           }
 
           // College aggregate
-          if (!university) return;
-          const existing = collegeMap.get(university) || { totalXp: 0, count: 0 };
+          if (!university || !normalizedUni) return;
+          const existing = collegeMap.get(normalizedUni) || { totalXp: 0, count: 0, displayName: university };
           existing.totalXp += xp;
           existing.count += 1;
-          collegeMap.set(university, existing);
+          collegeMap.set(normalizedUni, existing);
         });
 
         const ranked: CollegeData[] = Array.from(collegeMap.entries())
-          .map(([university, { totalXp, count }]) => ({
-            university,
+          .map(([, { totalXp, count, displayName }]) => ({
+            university: displayName,
             totalXp,
             userCount: count,
             avgXp: Math.round(totalXp / count),
