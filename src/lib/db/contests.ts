@@ -79,7 +79,7 @@ export interface ContestParticipant {
   username: string;
   score: number;
   totalTime: number;
-  joinedAt: unknown;
+  joinedAt: { seconds: number } | null | undefined;
 }
 
 export async function joinContest(contestId: string, userId: string, username: string) {
@@ -218,5 +218,64 @@ export function subscribeToParticipants(
     });
 
     callback(participants);
+  });
+}
+
+/** Get all contest participations for a user, with contest title included. */
+export async function getUserContestParticipations(userId: string): Promise<{
+  contestId: string;
+  contestTitle: string;
+  score: number;
+  rank: number;
+  totalParticipants: number;
+  joinedAt: any;
+}[]> {
+  // Query contestParticipants by userId
+  const q = query(
+    collection(db, PARTICIPANTS_COLLECTION),
+    where("userId", "==", userId)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return [];
+
+  // For each participation, get the contest title and compute rank
+  const results = await Promise.all(
+    snap.docs.map(async (d) => {
+      const data = d.data() as ContestParticipant;
+      // Get contest title
+      let contestTitle = "Unknown Contest";
+      try {
+        const contestDoc = await getDoc(doc(db, CONTESTS_COLLECTION, data.contestId));
+        if (contestDoc.exists()) {
+          contestTitle = (contestDoc.data().title as string) || contestTitle;
+        }
+      } catch {}
+
+      // Get all participants to compute rank
+      let rank = 1;
+      let totalParticipants = 1;
+      try {
+        const allParticipants = await getContestLeaderboard(data.contestId);
+        totalParticipants = allParticipants.length;
+        const myIndex = allParticipants.findIndex(p => p.userId === userId);
+        rank = myIndex >= 0 ? myIndex + 1 : totalParticipants;
+      } catch {}
+
+      return {
+        contestId: data.contestId,
+        contestTitle,
+        score: data.score || 0,
+        rank,
+        totalParticipants,
+        joinedAt: data.joinedAt,
+      };
+    })
+  );
+
+  // Sort by joinedAt descending (most recent first)
+  return results.sort((a, b) => {
+    const aT = (a.joinedAt as { seconds: number } | null)?.seconds || 0;
+    const bT = (b.joinedAt as { seconds: number } | null)?.seconds || 0;
+    return bT - aT;
   });
 }

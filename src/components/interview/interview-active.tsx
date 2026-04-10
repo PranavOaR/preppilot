@@ -320,8 +320,13 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         transcript.trim().length < 3;
 
       if (isInvalid) {
-        setStatusText("Couldn't hear you clearly. Please try again.");
-        await new Promise((r) => setTimeout(r, 1500));
+        const msg = transcript === "[Transcription failed]"
+          ? "Transcription failed — check your microphone and try again."
+          : transcript === "[No speech detected]"
+          ? "No speech detected — please speak clearly and try again."
+          : "Couldn't hear you clearly. Please try again.";
+        setStatusText(msg);
+        await new Promise((r) => setTimeout(r, 2000));
         continue; // loop back to waiting_to_record
       }
 
@@ -408,13 +413,37 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     qasRef.current = [];
     const allQAs: InterviewQA[] = [];
 
-    const FALLBACK_QUESTIONS = [
-      "Tell me about yourself and your technical background.",
-      "Walk me through a challenging problem you have solved recently.",
-      "How do you approach debugging a complex issue in production?",
-      "Describe a project you are most proud of and what you learned.",
-      "What is your approach to writing clean, maintainable code?",
-    ];
+    const FALLBACK_QUESTIONS: Record<string, string[]> = {
+      dsa: [
+        "Can you explain how you would check if a linked list has a cycle?",
+        "Walk me through how you would find the two numbers in an array that add up to a target sum.",
+        "How would you reverse a string without using built-in reverse methods?",
+        "Explain how a stack works and give a real-world use case.",
+        "How would you find the largest element in a binary tree?",
+      ],
+      aptitude: [
+        "If a train travels 60 km in 45 minutes, what is its speed in km/h?",
+        "A shopkeeper buys an item for ₹800 and sells it for ₹1000. What is the profit percentage?",
+        "In a group of 30 students, 18 play cricket and 15 play football. If 10 play both, how many play neither?",
+        "What comes next in the series: 2, 6, 12, 20, 30, ?",
+        "If 5 workers can complete a job in 8 days, how many days will 10 workers take?",
+      ],
+      behavioral: [
+        "Tell me about a time you had to work under a tight deadline. How did you handle it?",
+        "Describe a situation where you had a conflict with a teammate. How did you resolve it?",
+        "Tell me about a project you are most proud of and what your contribution was.",
+        "Describe a time when you had to learn something new quickly. How did you approach it?",
+        "Tell me about a time you received critical feedback. How did you respond?",
+      ],
+      "company-specific": [
+        "Why do you want to work at this company specifically?",
+        "Walk me through a challenging technical problem you solved recently.",
+        "How do you stay updated with new technologies and industry trends?",
+        "Describe your approach to writing clean, maintainable code.",
+        "Tell me about a time you improved the performance of a system or process.",
+      ],
+    };
+    const typedFallbacks = FALLBACK_QUESTIONS[config.type] || FALLBACK_QUESTIONS["company-specific"];
 
     async function run() {
       // ── Greeting ──
@@ -437,7 +466,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
         setPendingTranscript("");
         setQuestionIndex(i);
 
-        let question = FALLBACK_QUESTIONS[i % FALLBACK_QUESTIONS.length];
+        let question = typedFallbacks[i % typedFallbacks.length];
         try {
           const res = await fetchWithTimeout(
             "/api/interview/question",
@@ -739,6 +768,15 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
             <div className="absolute inset-0 rounded-full border-2 border-blue-400 opacity-0 group-hover:opacity-30 group-hover:scale-110 transition-all" />
           </button>
           <p className="text-xs font-medium text-blue-400">Click to Answer</p>
+          {phase === "waiting_to_record" && currentQuestion && (
+            <button
+              onClick={() => speakText(currentQuestion)}
+              className="flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-on-surface transition-colors px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high"
+            >
+              <span className="material-symbols-outlined text-[16px]">replay</span>
+              Hear question again
+            </button>
+          )}
         </div>
       )}
 
