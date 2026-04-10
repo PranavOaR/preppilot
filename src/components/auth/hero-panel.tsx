@@ -39,11 +39,6 @@ export function HeroPanel() {
         ))}
       </div>
 
-      <footer>
-        <p className="text-outline font-mono text-xs tracking-widest uppercase">
-          Established MMXXIV
-        </p>
-      </footer>
     </div>
   );
 }
