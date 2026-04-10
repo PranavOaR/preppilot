@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { getProblems } from "@/lib/db/problems";
+import { getUserContestParticipations } from "@/lib/db/contests";
 import { getUserSubmissions, getUserSolvedProblems } from "@/lib/db/submissions";
 import { getActivityLog } from "@/lib/db/activity";
 import { Heatmap } from "@/components/profile/heatmap";
@@ -46,6 +47,14 @@ export default function ProfilePage() {
     total: 0, easy: 0, medium: 0, hard: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [contestHistory, setContestHistory] = useState<{
+    contestId: string;
+    contestTitle: string;
+    score: number;
+    rank: number;
+    totalParticipants: number;
+    joinedAt: any;
+  }[]>([]);
   const [globalRank, setGlobalRank] = useState<number | null>(null);
   const [collegeRank, setCollegeRank] = useState<number | null>(null);
   const [totalUsers, setTotalUsers] = useState<number>(0);
@@ -119,20 +128,25 @@ export default function ProfilePage() {
         // Compute global + college rank
         try {
           const snap = await getDocs(collection(db, "users"));
-          const allUsers = snap.docs.map(d => ({ uid: d.id, xp: (d.data().xp as number) || 0, university: (d.data().university as string)?.trim() || "" }));
+          const allUsers = snap.docs.map(d => ({ uid: d.id, xp: (d.data().xp as number) || 0, university: (d.data().university as string)?.trim()?.toLowerCase() || "" }));
           allUsers.sort((a, b) => b.xp - a.xp);
           const myXP = profile?.xp ?? 0;
           const grank = allUsers.findIndex(u => u.uid === user!.uid) + 1;
           setGlobalRank(grank || null);
           setTotalUsers(allUsers.length);
           const uni = profile?.university?.trim();
-          if (uni) {
-            const sameCollege = allUsers.filter(u => u.university === uni);
+          const uniNorm = uni?.toLowerCase();
+          if (uni && uniNorm) {
+            const sameCollege = allUsers.filter(u => u.university.toLowerCase() === uniNorm);
             const crank = sameCollege.findIndex(u => u.uid === user!.uid) + 1;
             setCollegeRank(crank || null);
             setCollegeUsers(sameCollege.length);
           }
         } catch { /* ranking is non-critical */ }
+        try {
+          const participations = await getUserContestParticipations(user!.uid);
+          setContestHistory(participations);
+        } catch { /* contest history is non-critical */ }
       } catch (err) {
         console.error("Failed to fetch profile data:", err);
       } finally {
@@ -327,6 +341,46 @@ export default function ProfilePage() {
           <span className="material-symbols-outlined text-outline group-hover:text-on-surface-variant text-[18px] transition-colors">arrow_forward</span>
         </Link>
       </div>
+
+      {/* Contest History */}
+      {contestHistory.length > 0 && (
+        <div className="glass-panel subtle-border rounded-xl p-6">
+          <h3 className="font-serif text-on-surface text-lg font-medium mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary-brand text-xl">emoji_events</span>
+            Contest History
+          </h3>
+          <div className="space-y-2">
+            {contestHistory.slice(0, 5).map((c) => (
+              <div
+                key={c.contestId}
+                className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-on-surface text-sm font-medium truncate">{c.contestTitle}</p>
+                  <p className="text-on-surface-variant text-xs mt-0.5">
+                    Rank #{c.rank} of {c.totalParticipants}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 ml-4">
+                  <span className="font-mono text-primary-brand text-sm font-semibold">
+                    {c.score} pts
+                  </span>
+                  {c.rank <= 3 && (
+                    <span className="material-symbols-outlined text-[18px] text-yellow-400">
+                      {c.rank === 1 ? "military_tech" : "workspace_premium"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {contestHistory.length > 5 && (
+            <p className="text-on-surface-variant text-xs text-center mt-3">
+              +{contestHistory.length - 5} more contests
+            </p>
+          )}
+        </div>
+      )}
 
       {/* 2-Column: Donut + Recent Submissions */}
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
