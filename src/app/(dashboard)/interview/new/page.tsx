@@ -78,7 +78,7 @@ export default function NewInterviewPage() {
         type: config.type,
         targetCompany: config.targetCompany,
         language: config.language,
-        speaker: config.speaker || "meera",
+        speaker: config.speaker || "anushka",
         mode: config.mode || "practice",
         totalQuestions: config.totalQuestions,
         questionsCompleted: 0,

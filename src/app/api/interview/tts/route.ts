@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const audioBuffer = await textToSpeech(
       text,
       language || "en-IN",
-      speaker || "meera"
+      speaker || "anushka"
     );
 
     return new NextResponse(audioBuffer, {

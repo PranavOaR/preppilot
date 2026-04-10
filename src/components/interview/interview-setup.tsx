@@ -27,8 +27,8 @@ const DSA_TOPICS = [
 ];
 
 const SPEAKERS = [
-  { id: "meera", label: "Meera", icon: "face_3", description: "Female voice" },
-  { id: "arvind", label: "Arvind", icon: "face", description: "Male voice" },
+  { id: "anushka", label: "Anushka", icon: "face_3", description: "Female voice" },
+  { id: "abhilash", label: "Abhilash", icon: "face", description: "Male voice" },
 ];
 
 interface InterviewSetupProps {

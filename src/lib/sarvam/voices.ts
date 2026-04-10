@@ -10,9 +10,12 @@ export const SUPPORTED_LANGUAGES = [
   { code: "gu-IN", label: "Gujarati" },
 ] as const;
 
+// Valid speaker IDs for Sarvam bulbul:v2 model
+// Female: anushka, manisha, vidya, arya
+// Male:   abhilash, karun, hitesh
 export const SPEAKERS = [
-  { id: "meera", label: "Meera (Female)", gender: "female" },
-  { id: "arvind", label: "Arvind (Male)", gender: "male" },
+  { id: "anushka", label: "Anushka", gender: "female" },
+  { id: "abhilash", label: "Abhilash", gender: "male" },
 ] as const;
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];
