@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateHint } from "@/lib/groq/client";
 import { buildHintPrompt } from "@/lib/groq/prompts";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 import type { Problem } from "@/lib/types";
 
 /**
  * POST /api/hints
  *
  * Generates an AI hint for a DSA problem using Groq.
- * All quota checking, XP deduction, and usage tracking are handled
- * CLIENT-SIDE in hint-panel.tsx — this route only calls the Groq API.
+ * Quota checking, XP deduction, and usage tracking are handled
+ * CLIENT-SIDE in hint-panel.tsx — this route verifies auth and calls Groq.
  *
  * Body: { problem: Problem, hintLevel: 1|2|3|4 }
  */
 export async function POST(req: NextRequest) {
+  const token = extractBearerToken(req);
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const auth = await verifyIdToken(token);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { problem, hintLevel } = await req.json() as {
       problem: Problem;

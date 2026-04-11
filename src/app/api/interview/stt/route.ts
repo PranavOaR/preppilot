@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 const SARVAM_URL = process.env.SARVAM_API_URL || "https://api.sarvam.ai";
 const SARVAM_KEY = process.env.SARVAM_API_KEY || "";
 
 export async function POST(req: NextRequest) {
+  const token = extractBearerToken(req);
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await verifyIdToken(token);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const incoming = await req.formData();
     const audioFile = incoming.get("audio") as File | null;

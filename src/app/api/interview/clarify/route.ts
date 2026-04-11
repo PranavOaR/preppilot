@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import type { InterviewType } from "@/lib/types/interview";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 let _groq: Groq | null = null;
 function getGroq(): Groq {
@@ -9,6 +10,11 @@ function getGroq(): Groq {
 }
 
 export async function POST(req: NextRequest) {
+  const token = extractBearerToken(req);
+  if (!token) return NextResponse.json({ response: "Please answer based on your best understanding." }, { status: 200 });
+  const auth = await verifyIdToken(token);
+  if (!auth) return NextResponse.json({ response: "Please answer based on your best understanding." }, { status: 200 });
+
   try {
     const { originalQuestion, userQuery, type } = (await req.json()) as {
       originalQuestion: string;

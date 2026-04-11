@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -25,12 +26,12 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId");
+  const token = extractBearerToken(request);
+  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await verifyIdToken(token);
+  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!userId) {
-    return Response.json({ error: "userId is required" }, { status: 400 });
-  }
+  const userId = auth.uid;
 
   try {
     const body = await request.json();

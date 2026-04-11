@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { textToSpeech } from "@/lib/sarvam/client";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 export async function POST(req: NextRequest) {
+  const token = extractBearerToken(req);
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await verifyIdToken(token);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { text, language, speaker } = await req.json();
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getAuth } from "firebase/auth";
 import { InterviewTranscript } from "./interview-transcript";
 import { InterviewProgress } from "./interview-progress";
 import {
@@ -114,7 +115,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     return (text.match(fillers) || []).length;
   }
 
-  // ── Fetch with AbortController timeout ───────────────────────────────────
+  // ── Fetch with AbortController timeout + Firebase auth header ───────────
   async function fetchWithTimeout(
     url: string,
     options: RequestInit,
@@ -123,7 +124,15 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), ms);
     try {
-      const res = await fetch(url, { ...options, signal: ctrl.signal });
+      // Attach Firebase ID token to all /api/interview/* calls
+      let headers = options.headers as Record<string, string> | undefined;
+      if (url.startsWith("/api/interview")) {
+        const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+        if (idToken) {
+          headers = { ...(headers || {}), Authorization: `Bearer ${idToken}` };
+        }
+      }
+      const res = await fetch(url, { ...options, headers, signal: ctrl.signal });
       clearTimeout(t);
       return res;
     } catch (e: any) {

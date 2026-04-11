@@ -39,15 +39,17 @@ service cloud.firestore {
     }
 
     // ─── Progress ───
+    // doc ID: {userId}_{topic}
     match /progress/{progressId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && progressId.matches(request.auth.uid + '_.*');
     }
 
     // ─── Activity Log ───
+    // doc ID: {userId}_{date}
     match /activity/{activityId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && activityId.matches(request.auth.uid + '_.*');
     }
 
     // ─── Contests ───
@@ -75,9 +77,10 @@ service cloud.firestore {
     }
 
     // ─── Hint Usage ───
+    // doc ID: {userId}_{problemId}_level{N}
     match /hintUsage/{usageId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && usageId.matches(request.auth.uid + '_.*');
     }
 
     // ─── Interview Sessions ───
@@ -88,9 +91,10 @@ service cloud.firestore {
       allow update: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
 
-      // Q&A subcollection
+      // Q&A subcollection — only the session owner can read/write
       match /questions/{index} {
-        allow read, write: if isSignedIn();
+        allow read, write: if isSignedIn() &&
+          get(/databases/$(database)/documents/interviewSessions/$(sessionId)).data.userId == request.auth.uid;
       }
     }
 
@@ -98,7 +102,9 @@ service cloud.firestore {
     match /interviewFeedback/{sessionId} {
       allow read: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // ─── Payments ───

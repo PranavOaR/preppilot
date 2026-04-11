@@ -77,6 +77,7 @@ export default function SettingsPage() {
       });
       await refreshProfile();
       setSaved(true);
+      showToast("Settings saved!", "success");
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Failed to save settings:", err);

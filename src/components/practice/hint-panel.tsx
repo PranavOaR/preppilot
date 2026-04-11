@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { getAuth } from "firebase/auth";
 import { useAuth } from "@/contexts/auth-context";
 import { getUserUnlockedLevels, getCachedHint, setCachedHint, recordHintUsage } from "@/lib/db/hints";
 import { checkAndIncrementUsage } from "@/lib/plans/usage";
@@ -70,10 +71,14 @@ export function HintPanel({ problem }: HintPanelProps) {
       let hintText = await getCachedHint(problem.id, level);
 
       if (!hintText) {
-        // 4. Call API with problem data (server only does Groq call)
+        // 4. Call API with problem data (server verifies auth and calls Groq)
+        const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
         const res = await fetch("/api/hints", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          },
           body: JSON.stringify({ problem, hintLevel: level }),
         });
 

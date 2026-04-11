@@ -3,6 +3,7 @@ import Groq from "groq-sdk";
 import { buildFeedbackPrompt } from "@/lib/groq/interview-prompts";
 import { GROQ_MODELS } from "@/lib/groq/models";
 import type { InterviewType, InterviewQA } from "@/lib/types/interview";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 let _groq: Groq | null = null;
 function getGroq(): Groq {
@@ -11,6 +12,11 @@ function getGroq(): Groq {
 }
 
 export async function POST(req: NextRequest) {
+  const token = extractBearerToken(req);
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await verifyIdToken(token);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { type, targetCompany, qas } = (await req.json()) as {
       type: InterviewType;
