@@ -40,7 +40,7 @@ export function ContestTimer({ endTime, onTimeUp }: ContestTimerProps) {
 
   return (
     <div
-      className={`sticky top-[57px] z-40 px-6 py-2.5 flex items-center justify-between text-sm font-medium transition-colors ${
+      className={`fixed top-[57px] left-0 right-0 z-50 px-6 py-2.5 flex items-center justify-between text-sm font-medium transition-colors ${
         isExpired
           ? "bg-red-500/20 text-red-400"
           : isWarning

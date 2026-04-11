@@ -353,7 +353,7 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
                 <p className="text-on-surface-variant text-sm">
                   {result === "correct"
                     ? `Great job! You earned ${earnedXP ?? problem.xpReward} XP.`
-                    : `The correct answer is ${correctAnswer}.`}
+                    : `You selected Option ${selected}. The correct answer is Option ${correctAnswer}.`}
                 </p>
               </div>
             </div>

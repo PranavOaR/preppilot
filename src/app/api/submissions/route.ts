@@ -59,7 +59,7 @@ function wrapCppSolution(code: string): string | null {
   ];
   const SUPPORTED_RET = [
     "int", "long long", "bool", "double", "float", "void", "string",
-    "vector<int>", "vector<vector<int>>", "vector<vector<string>>",
+    "vector<int>", "vector<string>", "vector<vector<int>>", "vector<vector<string>>",
     "ListNode*", "TreeNode*",
   ];
 
@@ -276,6 +276,14 @@ function wrapCppSolution(code: string): string | null {
         `    cout<<"]\\n";\n`;
       break;
     }
+    case "vector<string>": {
+      main +=
+        `    auto _res=sol.${method}(${args});\n` +
+        `    cout<<"[";\n` +
+        `    for(int i=0;i<(int)_res.size();i++){if(i)cout<<",";cout<<"\\"" <<_res[i]<<"\\"";}\n` +
+        `    cout<<"]\\n";\n`;
+      break;
+    }
     case "vector<vector<int>>":
       main += print2DInt(`sol.${method}(${args})`); break;
     case "vector<vector<string>>": {
@@ -387,8 +395,27 @@ void _parseIntArr(int* arr, int* sz) {
 `;
   }
 
+  // Special handling: int* return with a returnSize-style output param
+  let intPtrReturnSize: string | null = null;
+  if (retType === "int*" || retType === "int *") {
+    // Find the output-size parameter (int* named *Size, *Count, *Len, etc.)
+    const retSizeIdx = params.findIndex((p) =>
+      (p.type === "int*" || p.type === "int *") &&
+      /size|count|len|num/i.test(p.name)
+    );
+    if (retSizeIdx < 0) return null; // can't determine array size
+    intPtrReturnSize = params[retSizeIdx].name;
+    params.splice(retSizeIdx, 1); // remove from input params — it's an output param
+  }
+
   let printCall: string;
-  if (retType === "int") {
+  if (intPtrReturnSize !== null) {
+    // int* return: call with &_retSz, then print array
+    const retSzVar = "_retSz";
+    printCall =
+      `int ${retSzVar}=0; int* _res=${method}(${args.join(", ")},&${retSzVar});` +
+      `printf("[");for(int _i=0;_i<${retSzVar};_i++){if(_i)printf(",");printf("%d",_res[_i]);}printf("]\\n");`;
+  } else if (retType === "int") {
     printCall = `printf("%d\\n", ${method}(${args.join(", ")}));`;
   } else if (retType === "long" || retType === "long long") {
     printCall = `printf("%lld\\n", ${method}(${args.join(", ")}));`;
@@ -740,7 +767,7 @@ export async function POST(request: NextRequest) {
       if (wrapped) {
         processedCode = wrapped;
       } else {
-        const hint = "Could not auto-wrap this C++ solution. Try switching to Python.";
+        const hint = "Could not auto-wrap this C++ solution. Make sure your code uses a standard `class Solution { public: ... };` structure with supported return/parameter types.";
         const stubResults = casesToRun.map((tc) => ({
           input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: "",
           passed: false, status: "Compile Error", time: null, memory: null, error: hint,
@@ -779,13 +806,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Pass compiler options: C++ uses C++17, C uses C17
+    const compilerOptions =
+      language === "cpp" ? "-std=c++17" :
+      language === "c"   ? "-std=c17"   :
+      undefined;
+
     const results = await runAgainstTestCases(
       processedCode,
       languageId,
       casesToRun.map((tc) => ({
         input: tc.input,
         expectedOutput: tc.expectedOutput,
-      }))
+      })),
+      compilerOptions
     );
 
     // Replace raw linker/runtime errors with friendly messages

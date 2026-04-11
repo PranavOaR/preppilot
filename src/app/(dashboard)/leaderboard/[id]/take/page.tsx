@@ -80,6 +80,8 @@ export default function ContestTakePage() {
   const [selectedOption, setSelectedOption] = useState<string>("");
 
   const [submitting, setSubmitting] = useState(false);
+  // Track submitted answers so MCQ selection remains visible after navigation
+  const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, string>>({});
   const startTimeRef = useRef(Date.now());
 
   const currentProblem = problems[currentIndex] || null;
@@ -144,13 +146,17 @@ export default function ContestTakePage() {
   useEffect(() => {
     if (!currentProblem) return;
     if (currentProblem.type === "dsa") {
-      setCode(currentProblem.starterCode?.[selectedLang] || "");
+      // Restore saved code from localStorage if available
+      const savedKey = `contest_code_${currentProblem.id}_${selectedLang}`;
+      const savedCode = typeof window !== "undefined" ? localStorage.getItem(savedKey) : null;
+      setCode(savedCode || currentProblem.starterCode?.[selectedLang] || "");
     }
-    setSelectedOption("");
+    // Restore previously submitted MCQ answer (so it's visible on return)
+    setSelectedOption(submittedAnswers[currentProblem.id] || "");
     setRunResults(null);
     setRunSummary(null);
     startTimeRef.current = Date.now();
-  }, [currentIndex, currentProblem, selectedLang]);
+  }, [currentIndex, currentProblem, selectedLang, submittedAnswers]);
 
   async function handleRunTests() {
     if (!currentProblem || !currentProblem.testCases) return;
@@ -241,6 +247,10 @@ export default function ContestTakePage() {
       if (isCorrect) {
         setCorrectIds((prev) => new Set([...prev, currentProblem.id]));
       }
+      // Remember what the user submitted (MCQ option or language)
+      if (currentProblem.type === "aptitude") {
+        setSubmittedAnswers((prev) => ({ ...prev, [currentProblem.id]: answer }));
+      }
 
       // Move to next unsolved problem
       const nextUnsolved = problems.findIndex(
@@ -290,7 +300,8 @@ export default function ContestTakePage() {
 
   return (
     <ProctorWrapper>
-    <div>
+    {/* pt-[44px] offsets the fixed ContestTimer bar (57px nav + 44px timer = 101px total) */}
+    <div className="pt-[44px]">
       <ContestTimer endTime={endTime} onTimeUp={handleTimeUp} />
 
       {timeUp && (
@@ -331,7 +342,7 @@ export default function ContestTakePage() {
                 ) : isSubmitted ? (
                   <span className="material-symbols-outlined text-[12px] text-red-400">cancel</span>
                 ) : null}
-                {i + 1}. {p.title.length > 12 ? p.title.slice(0, 12) + "…" : p.title}
+                Q{i + 1}
               </button>
             );
           })}
@@ -339,10 +350,10 @@ export default function ContestTakePage() {
       </div>
 
       <div className="flex min-h-[calc(100vh-57px-44px)]">
-        {/* Problem Sidebar — desktop only */}
-        <div className="hidden md:block w-56 shrink-0 border-r border-outline-variant/10 bg-surface-container-lowest p-3 space-y-1">
+        {/* Problem Sidebar — desktop only, shows numbers only (no titles for fairness) */}
+        <div className="hidden md:block w-48 shrink-0 border-r border-outline-variant/10 bg-surface-container-lowest p-3 space-y-1">
           <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
-            Problems ({correctIds.size}/{problems.length})
+            Questions ({correctIds.size}/{problems.length})
           </p>
           {problems.map((p, i) => {
             const isSolved = correctIds.has(p.id);
@@ -366,7 +377,7 @@ export default function ContestTakePage() {
                 ) : (
                   <span className="material-symbols-outlined text-[16px] text-outline-variant">radio_button_unchecked</span>
                 )}
-                <span className="truncate">{p.title}</span>
+                <span>Question {i + 1}</span>
               </button>
             );
           })}
@@ -377,17 +388,17 @@ export default function ContestTakePage() {
           {currentProblem && (
             <div className="max-w-4xl space-y-6">
               {/* Problem Header */}
-              <div className="flex items-center gap-3">
-                <span className="text-on-surface-variant text-sm font-mono">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-on-surface-variant text-sm font-mono shrink-0">
                   {currentIndex + 1}/{problems.length}
                 </span>
-                <h2 className="text-on-surface text-lg font-medium">{currentProblem.title}</h2>
-                <span className={`text-xs font-medium capitalize ${diffColors[currentProblem.difficulty]}`}>
+                <h2 className="text-on-surface text-base sm:text-lg font-medium min-w-0 break-words">{currentProblem.title}</h2>
+                <span className={`text-xs font-medium capitalize shrink-0 ${diffColors[currentProblem.difficulty]}`}>
                   {currentProblem.difficulty}
                 </span>
-                <span className="text-on-surface-variant text-xs uppercase">{currentProblem.type}</span>
+                <span className="text-on-surface-variant text-xs uppercase shrink-0">{currentProblem.type}</span>
                 {submittedIds.has(currentProblem.id) && (
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${
                     correctIds.has(currentProblem.id)
                       ? "bg-green-500/15 text-green-400"
                       : "bg-red-500/15 text-red-400"
@@ -407,44 +418,69 @@ export default function ContestTakePage() {
                 <div className="space-y-3">
                   {(currentProblem.options || []).map((opt, i) => {
                     const label = String.fromCharCode(65 + i); // "A", "B", "C", "D"
+                    const isSubmitted = submittedIds.has(currentProblem.id);
+                    const isSelected = selectedOption === label;
+                    const isCorrect = label === currentProblem.correctAnswer;
+                    const showCorrect = isSubmitted && isCorrect;
+                    const showWrong = isSubmitted && isSelected && !isCorrect;
                     return (
                       <label
                         key={i}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors ${
-                          selectedOption === label
+                        className={`flex items-start gap-3 px-3 sm:px-4 py-3 rounded-lg transition-colors ${
+                          showCorrect
+                            ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                            : showWrong
+                            ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                            : isSelected
                             ? "bg-primary-container/15 text-primary-brand subtle-border"
                             : "bg-surface-container text-on-surface hover:bg-surface-container-high"
-                        } ${submittedIds.has(currentProblem.id) ? "pointer-events-none opacity-70" : ""}`}
+                        } ${isSubmitted ? "pointer-events-none" : "cursor-pointer"}`}
                       >
                         <input
                           type="radio"
                           name="mcq"
                           value={label}
-                          checked={selectedOption === label}
+                          checked={isSelected}
                           onChange={() => setSelectedOption(label)}
-                          disabled={submittedIds.has(currentProblem.id)}
-                          className="accent-primary-brand"
+                          disabled={isSubmitted}
+                          className="accent-primary-brand mt-0.5 shrink-0"
                         />
-                        <span className="text-sm">
+                        <span className="text-sm flex-1">
                           {label}. {opt}
                         </span>
+                        {showCorrect && <span className="material-symbols-outlined text-[16px] text-green-400">check_circle</span>}
+                        {showWrong && <span className="material-symbols-outlined text-[16px] text-red-400">cancel</span>}
                       </label>
                     );
                   })}
+                  {/* Post-submission verdict */}
+                  {submittedIds.has(currentProblem.id) && (
+                    <div className={`rounded-lg px-4 py-3 text-sm font-medium ${
+                      correctIds.has(currentProblem.id)
+                        ? "bg-green-500/10 text-green-400"
+                        : "bg-red-500/10 text-red-400"
+                    }`}>
+                      {correctIds.has(currentProblem.id)
+                        ? "✓ Correct! Well done."
+                        : `✗ Incorrect. You selected Option ${submittedAnswers[currentProblem.id] || selectedOption}. Correct answer: Option ${currentProblem.correctAnswer}.`}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* DSA Code Editor */}
               {currentProblem.type === "dsa" && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {(["python", "c", "cpp", "java"] as const).map((lang) => (
                       <button
                         key={lang}
                         type="button"
                         onClick={() => {
                           setSelectedLang(lang);
-                          setCode(currentProblem.starterCode?.[lang] || "");
+                          const savedKey = `contest_code_${currentProblem.id}_${lang}`;
+                          const saved = localStorage.getItem(savedKey);
+                          setCode(saved || currentProblem.starterCode?.[lang] || "");
                         }}
                         className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                           selectedLang === lang
@@ -455,13 +491,32 @@ export default function ContestTakePage() {
                         {lang.toUpperCase()}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const starter = currentProblem.starterCode?.[selectedLang] || "";
+                        setCode(starter);
+                        localStorage.removeItem(`contest_code_${currentProblem.id}_${selectedLang}`);
+                      }}
+                      className="ml-auto px-3 py-1.5 rounded text-xs text-on-surface-variant hover:text-error transition-colors flex items-center gap-1"
+                      title="Reset to starter code"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">restart_alt</span>
+                      Reset
+                    </button>
                   </div>
-                  <div className="rounded-lg overflow-hidden subtle-border h-72">
+                  <div className="rounded-lg overflow-hidden subtle-border h-48 sm:h-72">
                     <Editor
                       height="100%"
                       language={monacoLangMap[selectedLang]}
                       value={code}
-                      onChange={(val) => setCode(val || "")}
+                      onChange={(val) => {
+                        const v = val || "";
+                        setCode(v);
+                        if (currentProblem) {
+                          localStorage.setItem(`contest_code_${currentProblem.id}_${selectedLang}`, v);
+                        }
+                      }}
                       theme="vs-dark"
                       options={{
                         minimap: { enabled: false },
@@ -483,7 +538,7 @@ export default function ContestTakePage() {
                             {r.passed ? "check_circle" : "cancel"}
                           </span>
                           <span className="text-on-surface-variant">Test {i + 1}: {r.status}</span>
-                          {r.error && <span className="text-red-400 truncate max-w-xs">{r.error}</span>}
+                          {r.error && <span className="text-red-400 break-words">{r.error}</span>}
                         </div>
                       ))}
                     </div>
@@ -493,7 +548,7 @@ export default function ContestTakePage() {
 
               {/* Action Buttons */}
               {!submittedIds.has(currentProblem.id) && !timeUp && (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   {currentProblem.type === "dsa" && (
                     <button
                       onClick={handleRunTests}
@@ -534,27 +589,32 @@ export default function ContestTakePage() {
               )}
 
               {/* Navigation */}
-              <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+              <div className="flex items-center justify-between gap-2 pt-4 border-t border-outline-variant/10">
                 <button
                   onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
                   disabled={currentIndex === 0}
-                  className="px-4 py-2 rounded-lg text-sm text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-30"
+                  className="px-3 sm:px-4 py-2 rounded-lg text-sm text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-30 flex items-center gap-1"
                 >
-                  Previous
+                  <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+                  <span className="hidden sm:inline">Previous</span>
                 </button>
+                <span className="text-xs text-on-surface-variant">{currentIndex + 1} of {problems.length}</span>
                 {currentIndex < problems.length - 1 ? (
                   <button
                     onClick={() => setCurrentIndex(currentIndex + 1)}
-                    className="px-4 py-2 rounded-lg text-sm text-primary-brand hover:underline transition-colors"
+                    className="px-3 sm:px-4 py-2 rounded-lg text-sm text-primary-brand hover:underline transition-colors flex items-center gap-1"
                   >
-                    Next Problem
+                    <span className="hidden sm:inline">Next Problem</span>
+                    <span className="sm:hidden">Next</span>
+                    <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                   </button>
                 ) : (
                   <button
                     onClick={() => router.push(`/leaderboard/${contestId}`)}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors subtle-border"
+                    className="px-3 sm:px-4 py-2 rounded-lg text-sm font-medium bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors subtle-border"
                   >
-                    View Leaderboard
+                    <span className="hidden sm:inline">View Leaderboard</span>
+                    <span className="sm:hidden">Leaderboard</span>
                   </button>
                 )}
               </div>

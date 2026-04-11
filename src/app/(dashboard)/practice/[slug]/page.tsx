@@ -87,7 +87,9 @@ export default function ProblemPage() {
         const p = await getProblemBySlug(slug);
         setProblem(p);
         if (p) {
-          setCode(p.starterCode["python"] || "");
+          // Restore saved code from localStorage, fall back to starter code
+          const saved = localStorage.getItem(`practice_code_${slug}_python`);
+          setCode(saved || p.starterCode["python"] || "");
         }
       } catch (err) {
         console.error("Failed to fetch problem:", err);
@@ -102,11 +104,18 @@ export default function ProblemPage() {
     (lang: "python" | "c" | "cpp" | "java") => {
       setSelectedLang(lang);
       if (problem) {
-        setCode(problem.starterCode[lang] || "");
+        const saved = localStorage.getItem(`practice_code_${slug}_${lang}`);
+        setCode(saved || problem.starterCode[lang] || "");
       }
     },
-    [problem]
+    [problem, slug]
   );
+
+  const handleResetCode = useCallback(() => {
+    if (!problem) return;
+    localStorage.removeItem(`practice_code_${slug}_${selectedLang}`);
+    setCode(problem.starterCode[selectedLang] || "");
+  }, [problem, slug, selectedLang]);
 
   async function handleRun() {
     if (!problem) return;
@@ -560,6 +569,14 @@ export default function ProblemPage() {
                   </button>
                 ))}
               </div>
+              <button
+                onClick={handleResetCode}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs text-on-surface-variant hover:text-error transition-colors"
+                title="Reset to starter code"
+              >
+                <span className="material-symbols-outlined text-[14px]">restart_alt</span>
+                Reset
+              </button>
             </div>
 
             {/* Editor / Results Toggle */}
@@ -600,7 +617,11 @@ export default function ProblemPage() {
                   height="100%"
                   language={monacoLangMap[selectedLang]}
                   value={code}
-                  onChange={(value) => setCode(value || "")}
+                  onChange={(value) => {
+                    const v = value || "";
+                    setCode(v);
+                    localStorage.setItem(`practice_code_${slug}_${selectedLang}`, v);
+                  }}
                   theme="vs-dark"
                   options={{
                     minimap: { enabled: false },

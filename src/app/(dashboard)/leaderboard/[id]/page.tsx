@@ -303,8 +303,8 @@ export default function ContestDetailPage() {
         </div>
       </div>
 
-      {/* Problems Section */}
-      {problems.length > 0 && (
+      {/* Problems Section — hidden for upcoming contests to prevent cheating */}
+      {problems.length > 0 && computedStatus !== "upcoming" && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary-brand text-[22px]">assignment</span>

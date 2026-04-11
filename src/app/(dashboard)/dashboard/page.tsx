@@ -112,11 +112,14 @@ export default function DashboardPage() {
         setWeakTopics(weak);
 
         // Find unsolved problems for daily challenge — 1 DSA + 1 Aptitude
+        // Use a date+user seed so the same user sees the same challenge all day
         const unsolvedDSA = allProblems.filter((p) => !solvedSet.has(p.id) && p.type === "dsa");
         const unsolvedAptitude = allProblems.filter((p) => !solvedSet.has(p.id) && p.type === "aptitude");
-        const pickedDSA = unsolvedDSA.sort(() => Math.random() - 0.5).slice(0, 1);
-        const pickedAptitude = unsolvedAptitude.sort(() => Math.random() - 0.5).slice(0, 1);
-        setUnsolved([...pickedDSA, ...pickedAptitude]);
+        const todayStr = new Date().toDateString();
+        const seedStr = todayStr + (user?.uid || "");
+        const seed = seedStr.split("").reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 0);
+        const pickByDate = (arr: Problem[]) => arr.length === 0 ? [] : [arr[seed % arr.length]];
+        setUnsolved([...pickByDate(unsolvedDSA), ...pickByDate(unsolvedAptitude)]);
 
         // Active/upcoming contests
         const liveContests = contests.filter((c) => c.status === "active" || c.status === "upcoming");

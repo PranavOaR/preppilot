@@ -40,17 +40,21 @@ async function submitCodeOnce(
   sourceCode: string,
   languageId: number,
   stdin: string,
-  expectedOutput?: string
+  expectedOutput?: string,
+  compilerOptions?: string
 ): Promise<SubmissionResult> {
+  const body: Record<string, unknown> = {
+    source_code: toBase64(sourceCode),
+    language_id: languageId,
+    stdin: toBase64(stdin),
+    expected_output: expectedOutput ? toBase64(expectedOutput) : undefined,
+  };
+  if (compilerOptions) body.compiler_options = compilerOptions;
+
   const res = await fetch(`${API_URL}/submissions?base64_encoded=true&wait=true`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({
-      source_code: toBase64(sourceCode),
-      language_id: languageId,
-      stdin: toBase64(stdin),
-      expected_output: expectedOutput ? toBase64(expectedOutput) : undefined,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -74,14 +78,15 @@ export async function submitCode(
   languageId: number,
   stdin: string,
   expectedOutput?: string,
-  retries = 2
+  retries = 2,
+  compilerOptions?: string
 ): Promise<SubmissionResult> {
   try {
-    return await submitCodeOnce(sourceCode, languageId, stdin, expectedOutput);
+    return await submitCodeOnce(sourceCode, languageId, stdin, expectedOutput, compilerOptions);
   } catch (err) {
     if (retries > 0) {
       await new Promise((r) => setTimeout(r, 1000));
-      return submitCode(sourceCode, languageId, stdin, expectedOutput, retries - 1);
+      return submitCode(sourceCode, languageId, stdin, expectedOutput, retries - 1, compilerOptions);
     }
     throw err;
   }
@@ -101,13 +106,14 @@ export interface TestCaseResult {
 export async function runAgainstTestCases(
   sourceCode: string,
   languageId: number,
-  testCases: { input: string; expectedOutput: string }[]
+  testCases: { input: string; expectedOutput: string }[],
+  compilerOptions?: string
 ): Promise<TestCaseResult[]> {
   const results: TestCaseResult[] = [];
 
   for (const tc of testCases) {
     try {
-      const result = await submitCode(sourceCode, languageId, tc.input);
+      const result = await submitCode(sourceCode, languageId, tc.input, undefined, 2, compilerOptions);
 
       const actualOutput = (result.stdout || "").trim();
       const expectedTrimmed = tc.expectedOutput.trim();
