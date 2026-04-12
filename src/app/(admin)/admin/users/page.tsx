@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import {
   getAllUsers,
@@ -321,9 +321,8 @@ export default function AdminUsersPage() {
                 const isExpanded = expandedUserId === u.id;
 
                 return (
-                  <>
+                  <React.Fragment key={u.id}>
                     <tr
-                      key={u.id}
                       className={`border-b border-outline-variant/5 hover:bg-surface-container transition-colors cursor-pointer ${
                         u.isUnethical ? "bg-red-500/5" : ""
                       } ${selected.has(u.id) ? "bg-primary-container/5" : ""}`}
@@ -472,7 +471,7 @@ export default function AdminUsersPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
               {filtered.length === 0 && (

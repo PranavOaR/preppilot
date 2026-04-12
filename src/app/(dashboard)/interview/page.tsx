@@ -224,9 +224,7 @@ export default function InterviewHistoryPage() {
                       <div className="flex items-center gap-3 text-xs text-on-surface-variant flex-wrap">
                         <span>{formatDate(session.startedAt)}</span>
                         <span>&bull;</span>
-                        <span>{session.questionsCompleted}/{session.totalQuestions} questions</span>
-                        <span>&bull;</span>
-                        <span className="capitalize">{session.language.replace("-", " ")}</span>
+                        <span>{session.durationMinutes ?? session.totalQuestions} {session.durationMinutes ? "min" : "questions"}</span>
                       </div>
                       {feedback && (
                         <div className="flex items-center gap-1.5 text-xs">

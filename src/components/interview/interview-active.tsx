@@ -1,71 +1,76 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth } from "firebase/auth";
-import { InterviewTranscript } from "./interview-transcript";
-import { InterviewProgress } from "./interview-progress";
 import {
   saveInterviewQA,
-  updateInterviewSession,
   completeInterviewSession,
   saveInterviewFeedback,
 } from "@/lib/db/interviews";
-import type { InterviewQA, InterviewConfig } from "@/lib/types/interview";
+import { getVapiClient, destroyVapiClient } from "@/lib/vapi/client";
+import type { InterviewQA, InterviewConfig, InterviewFeedback } from "@/lib/types/interview";
 
-// ── WAV encoder: converts Float32 PCM samples → WAV ArrayBuffer ─────────────
-function float32ToWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const dataSize = samples.length * blockAlign;
-  const buf = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buf);
-  const writeStr = (off: number, s: string) => {
-    for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
-  };
-  writeStr(0, "RIFF");
-  view.setUint32(4, 36 + dataSize, true);
-  writeStr(8, "WAVE");
-  writeStr(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-  writeStr(36, "data");
-  view.setUint32(40, dataSize, true);
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(44 + i * 2, s * (s < 0 ? 32768 : 32767), true);
-  }
-  return buf;
+// ── Build the system-prompt override from user's setup choices ───────────────
+function buildSystemPrompt(config: InterviewConfig): string {
+  const typeLabel =
+    config.type === "company-specific" ? `company-specific (${config.targetCompany})` :
+    config.type === "dsa" ? "DSA (data structures & algorithms)" :
+    config.type === "aptitude" ? "aptitude / logical reasoning" : "behavioral (STAR method)";
+
+  const topicLine =
+    config.type === "dsa" && config.topics?.length
+      ? `\n- Topic focus: ${config.topics.join(", ")} ONLY — do not ask about other DSA topics.`
+      : "";
+
+  const modeInstruction =
+    config.mode === "exam"
+      ? "EXAM mode: no hints, no encouragement, no coaching — professional and neutral throughout."
+      : "PRACTICE mode: after a weak answer briefly acknowledge the gap, give a small hint, then continue.";
+
+  return `## Role
+You are Emma, an AI Interview Coach. You are already briefed — do NOT ask the candidate what role or company they are targeting.
+
+## Session (pre-configured, do not ask the user about these)
+- Interview type: ${typeLabel}
+- Target company: ${config.targetCompany}
+- Duration: ${config.durationMinutes} minutes${topicLine}
+- Mode: ${modeInstruction}
+
+## Critical rules
+1. NEVER ask the candidate what role, company, or topic they want to be interviewed on. This is already set above.
+2. NEVER end the call yourself — the system will end it automatically when the timer expires. Even if the user says "stop", "end", "goodbye", or "I'm done" — acknowledge it politely but keep going with the next question.
+3. Do not say "goodbye" or "thanks for your time" as a closing — the system handles the ending.
+4. Start immediately with a short intro referencing ${config.targetCompany} and ${config.type}, then ask the first question. No preamble.
+
+## Flow
+- Ask one focused question at a time.
+- Use natural follow-ups based on the answer.
+- Pace evenly across ${config.durationMinutes} minutes.
+- ${config.mode === "exam" ? "Give no feedback mid-interview." : "After weak answers, briefly coach before the next question."}`;
 }
 
-// ── Interviewer personas ─────────────────────────────────────────────────────
-const PERSONAS: Record<string, { name: string; role: string }> = {
-  technical: { name: "Arjun", role: "Senior Software Engineer" },
-  behavioral: { name: "Priya", role: "Engineering Manager" },
-  hr: { name: "Rahul", role: "HR Lead" },
-  dsa: { name: "Aditya", role: "Senior SDE" },
-  aptitude: { name: "Neha", role: "Technical Recruiter" },
-  "company-specific": { name: "Rohan", role: "Staff Engineer" },
-};
+// ── Build the personalized first message ────────────────────────────────────
+function buildFirstMessage(config: InterviewConfig): string {
+  const typeLabel =
+    config.type === "dsa" ? "DSA" :
+    config.type === "aptitude" ? "aptitude" :
+    config.type === "behavioral" ? "behavioral" : "company-specific";
 
-type Phase =
-  | "starting"
-  | "greeting"
-  | "generating"
-  | "speaking"
-  | "waiting_to_record"     // user must click mic to begin
-  | "listening"              // actively recording
-  | "confirming_transcript"  // user reviews their answer before evaluation
-  | "clarifying"
-  | "processing"
-  | "wrapping_up";
+  const topicHint =
+    config.type === "dsa" && config.topics?.length
+      ? ` focusing on ${config.topics.slice(0, 2).join(" and ")}${config.topics.length > 2 ? " and more" : ""}`
+      : "";
+
+  return `Hi! I'm Emma, your interview coach. Today we're doing a ${config.durationMinutes}-minute ${typeLabel} interview${topicHint} geared towards ${config.targetCompany}. Let's jump right in — ${config.type === "behavioral" ? "tell me about yourself and a recent challenge you overcame." : config.type === "dsa" ? "here's your first problem." : "let's start with your background."}`;
+}
+
+interface TranscriptLine {
+  role: "assistant" | "user";
+  text: string;
+}
+
+type CallStatus = "connecting" | "active" | "ending" | "processing" | "error";
 
 interface InterviewActiveProps {
   sessionId: string;
@@ -76,1004 +81,374 @@ interface InterviewActiveProps {
 export function InterviewActive({ sessionId, config, userId }: InterviewActiveProps) {
   const router = useRouter();
 
-  const persona = PERSONAS[config.type] || { name: "Arjun", role: "Technical Interviewer" };
+  const [callStatus, setCallStatus] = useState<CallStatus>("connecting");
+  const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [endConfirm, setEndConfirm] = useState(false);
 
-  const [phase, setPhase] = useState<Phase>("starting");
-  const [qas, setQAs] = useState<InterviewQA[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState("");
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [statusText, setStatusText] = useState("Starting interview...");
-  const [liveTranscript, setLiveTranscript] = useState("");
-  const [pendingTranscript, setPendingTranscript] = useState("");
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [micError, setMicError] = useState("");
-  const [quotaError, setQuotaError] = useState("");
-
-  const [pendingConfidence, setPendingConfidence] = useState(3);
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [notesText, setNotesText] = useState("");
-  const [coachingHint, setCoachingHint] = useState("");
-
-  const qasRef = useRef<InterviewQA[]>([]);
-  const abortRef = useRef(false);
-  const stopRecordingRef = useRef<(() => void) | null>(null);
+  // Countdown timer
+  const totalSeconds = config.durationMinutes * 60;
+  const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const resolvePlayRef = useRef<(() => void) | null>(null);
-  const transcriptModeRef = useRef<string>("answer");
-  const userSkippedRef = useRef(false);
-  const startRecordingTriggerRef = useRef<(() => void) | null>(null);
-  const confirmResultRef = useRef<{ confirm: () => void; retry: () => void } | null>(null);
-  const pendingConfidenceRef = useRef(3);
-  const lastAnswerDurationRef = useRef(0);
 
-  useEffect(() => { qasRef.current = qas; }, [qas]);
+  const transcriptRef = useRef<TranscriptLine[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const callEndedRef = useRef(false);
 
-  function countFillerWords(text: string): number {
-    const fillers = /\b(um+|uh+|like|you know|basically|literally|actually|sort of|kind of|well|so|right|okay)\b/gi;
-    return (text.match(fillers) || []).length;
-  }
+  useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
-  // ── Fetch with AbortController timeout + Firebase auth header ───────────
-  async function fetchWithTimeout(
-    url: string,
-    options: RequestInit,
-    ms = 20000
-  ): Promise<Response> {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    try {
-      // Attach Firebase ID token to all /api/interview/* calls
-      let headers = options.headers as Record<string, string> | undefined;
-      if (url.startsWith("/api/interview")) {
-        const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
-        if (idToken) {
-          headers = { ...(headers || {}), Authorization: `Bearer ${idToken}` };
-        }
-      }
-      const res = await fetch(url, { ...options, headers, signal: ctrl.signal });
-      clearTimeout(t);
-      return res;
-    } catch (e: any) {
-      clearTimeout(t);
-      if (e.name === "AbortError") throw new Error("Request timed out");
-      throw e;
-    }
-  }
-
-  // ── Play WAV ArrayBuffer via Web Audio API ────────────────────────────────
-  async function playAudioBuffer(buffer: ArrayBuffer, text: string): Promise<void> {
-    return new Promise((resolve) => {
-      try {
-        const AudioCtx =
-          window.AudioContext || (window as any).webkitAudioContext;
-        const ctx = new AudioCtx();
-        audioCtxRef.current = ctx;
-        ctx.decodeAudioData(
-          buffer.slice(0),
-          (decoded) => {
-            const src = ctx.createBufferSource();
-            audioSourceRef.current = src;
-            src.buffer = decoded;
-            src.connect(ctx.destination);
-
-            let resolved = false;
-            const done = () => {
-              if (!resolved) {
-                resolved = true;
-                resolvePlayRef.current = null;
-                audioSourceRef.current = null;
-                ctx.close().catch(() => {});
-                resolve();
-              }
-            };
-
-            resolvePlayRef.current = done;
-            src.onended = done;
-            const words = text.split(" ").length;
-            setTimeout(done, Math.max(4000, (words / 2.5) * 1000) + 3000);
-            src.start(0);
-          },
-          () => {
-            ctx.close().catch(() => {});
-            resolve();
-          }
-        );
-      } catch {
-        resolve();
-      }
-    });
-  }
-
-  // ── Stop currently playing audio immediately ──────────────────────────────
-  function stopCurrentAudio() {
-    try { audioSourceRef.current?.stop(); } catch {}
-    audioSourceRef.current = null;
-    if (audioCtxRef.current?.state !== "closed") {
-      audioCtxRef.current?.close().catch(() => {});
-    }
-    audioCtxRef.current = null;
-    resolvePlayRef.current?.();
-    resolvePlayRef.current = null;
-  }
-
-  // ── Speak via Sarvam TTS ─────────────────────────────────────────────────
-  async function speakText(text: string): Promise<void> {
-    try {
-      const res = await fetchWithTimeout(
-        "/api/interview/tts",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, language: config.language, speaker: config.speaker || "anushka" }),
-        },
-        15000
-      );
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(`TTS ${res.status}: ${errBody.error || "unknown"}`);
-      }
-      const buf = await res.arrayBuffer();
-      await playAudioBuffer(buf, text);
-    } catch (err) {
-      console.error("TTS failed:", err);
-      setStatusText("(Audio unavailable — read question above)");
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
-
-  // ── Record audio → Sarvam STT → transcript (with manual start + confirm) ──
-  async function recordAndTranscribe(): Promise<string> {
-    setMicError("");
-    setLiveTranscript("");
-    setPendingTranscript("");
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (abortRef.current) return "[Aborted]";
-
-      // Step 1: Wait for user to click the mic button
-      setPhase("waiting_to_record");
-      setStatusText("Click the microphone when you're ready to answer");
-      await new Promise<void>((res) => { startRecordingTriggerRef.current = res; });
-      startRecordingTriggerRef.current = null;
-      if (abortRef.current) return "[Aborted]";
-
-      // Step 2: Acquire microphone
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch {
-        setMicError("Microphone access denied. Please allow access and reload.");
-        return "[Microphone access denied]";
-      }
-
-      // Step 3: Record and transcribe
-      const { transcript, mode } = await new Promise<{ transcript: string; mode: string }>((resolve) => {
-        const chunks: BlobPart[] = [];
-        const recorder = new MediaRecorder(stream);
-        let stopped = false;
-        let secs = 0;
-
-        setPhase("listening");
-        setStatusText("Recording — speak clearly, then click Done");
-
-        const tick = setInterval(() => {
-          secs++;
-          setRecordingSeconds(secs);
-          if (secs >= 180) stopRec();
-        }, 1000);
-        timerRef.current = tick;
-
-        function stopRec() {
-          if (stopped) return;
-          stopped = true;
-          lastAnswerDurationRef.current = secs;
-          clearInterval(tick);
-          timerRef.current = null;
-          setRecordingSeconds(0);
-          try { recorder.stop(); } catch {}
-          stream.getTracks().forEach((t) => t.stop());
-        }
-        stopRecordingRef.current = stopRec;
-
-        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-
-        recorder.onstop = async () => {
-          stopRecordingRef.current = null;
-          const capturedMode = transcriptModeRef.current;
-          setPhase("processing");
-          setStatusText("Transcribing your answer...");
-
-          const mimeType = recorder.mimeType || "audio/webm";
-          const blob = new Blob(chunks, { type: mimeType });
-          console.log(`[STT] Recorded: ${blob.size} bytes, type: ${mimeType}`);
-
-          if (blob.size < 500) {
-            resolve({ transcript: "[No audio recorded]", mode: capturedMode });
-            return;
-          }
-
-          try {
-            const rawBuffer = await blob.arrayBuffer();
-            const decodeCtx = new AudioContext();
-            const decoded = await decodeCtx.decodeAudioData(rawBuffer);
-            await decodeCtx.close();
-
-            const wavBuffer = float32ToWav(decoded.getChannelData(0), decoded.sampleRate);
-            const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });
-            console.log(`[STT] WAV: ${wavBlob.size} bytes, ${decoded.sampleRate}Hz, ${decoded.duration.toFixed(1)}s`);
-
-            const form = new FormData();
-            form.append("audio", wavBlob, "recording.wav");
-            form.append("language", config.language);
-
-            const res = await fetchWithTimeout("/api/interview/stt", { method: "POST", body: form }, 30000);
-            if (!res.ok) {
-              const errText = await res.text().catch(() => "");
-              console.error("[STT] API error:", res.status, errText);
-              resolve({ transcript: "[Transcription failed]", mode: capturedMode });
-              return;
-            }
-            const data = await res.json();
-            console.log("[STT] Response:", data);
-            const text = (data.transcript || "").trim();
-            resolve({ transcript: text || "[No speech detected]", mode: capturedMode });
-          } catch (err) {
-            console.error("[STT] Failed:", err);
-            resolve({ transcript: "[Transcription failed]", mode: capturedMode });
-          }
-        };
-
-        recorder.start();
-      });
-
-      // Step 4: For clarifying questions, skip confirmation and return immediately
-      if (mode === "question") {
-        setLiveTranscript(transcript);
-        return transcript;
-      }
-
-      // Step 5: Validate transcript
-      const isInvalid =
-        !transcript ||
-        transcript.startsWith("[") ||
-        transcript.trim().length < 3;
-
-      if (isInvalid) {
-        const msg = transcript === "[Transcription failed]"
-          ? "Transcription failed — check your microphone and try again."
-          : transcript === "[No speech detected]"
-          ? "No speech detected — please speak clearly and try again."
-          : "Couldn't hear you clearly. Please try again.";
-        setStatusText(msg);
-        await new Promise((r) => setTimeout(r, 2000));
-        continue; // loop back to waiting_to_record
-      }
-
-      // Step 6: Show transcript to user for review before evaluation
-      setPendingTranscript(transcript);
-      setLiveTranscript(transcript);
-      setPhase("confirming_transcript");
-      setStatusText("Review your answer — confirm or record again");
-
-      const action = await new Promise<"confirm" | "retry">((resolve) => {
-        confirmResultRef.current = {
-          confirm: () => resolve("confirm"),
-          retry: () => resolve("retry"),
-        };
-      });
-      confirmResultRef.current = null;
-
-      if (action === "retry") {
-        setPendingTranscript("");
-        setLiveTranscript("");
-        continue; // loop back to waiting_to_record
-      }
-
-      return transcript;
-    }
-  }
-
-  // ── Generate feedback and navigate to results ────────────────────────────
-  async function generateFeedback(allQAs: InterviewQA[]) {
-    setPhase("wrapping_up");
-    setStatusText("Generating your feedback report...");
-    await speakText("That concludes our interview today. Thank you for your time. Let me prepare your feedback report now.");
-
-    try {
-      const res = await fetchWithTimeout(
-        "/api/interview/feedback",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: config.type,
-            targetCompany: config.targetCompany,
-            qas: allQAs,
-          }),
-        },
-        30000
-      );
-      const feedback = await res.json();
-      const overallScore = feedback.overallScore || 50;
-
-      await completeInterviewSession(sessionId, overallScore);
-      await saveInterviewFeedback({
-        sessionId,
-        userId,
-        overallScore,
-        summary: feedback.summary || "",
-        strengths: feedback.strengths || [],
-        weaknesses: feedback.weaknesses || [],
-        topicScores: feedback.topicScores || {},
-        suggestions: feedback.suggestions || [],
-        generatedAt: null as any,
-      });
-
-      // Exit fullscreen before navigating to feedback
-      if (document.fullscreenElement) {
-        await document.exitFullscreen().catch(() => {});
-      }
-      router.push(`/interview/${sessionId}/feedback`);
-    } catch (err) {
-      console.error("Feedback failed:", err);
-      setStatusText("Interview complete! Redirecting to feedback...");
-      setTimeout(async () => {
-        if (document.fullscreenElement) {
-          await document.exitFullscreen().catch(() => {});
-        }
-        router.push(`/interview/${sessionId}/feedback`);
-      }, 2000);
-    }
-  }
-
-  // ── Main interview loop (runs once on mount) ─────────────────────────────
+  // Auto-scroll
   useEffect(() => {
-    abortRef.current = false;
-    qasRef.current = [];
-    const allQAs: InterviewQA[] = [];
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [transcript]);
 
-    const FALLBACK_QUESTIONS: Record<string, string[]> = {
-      dsa: [
-        "Can you explain how you would check if a linked list has a cycle?",
-        "Walk me through how you would find the two numbers in an array that add up to a target sum.",
-        "How would you reverse a string without using built-in reverse methods?",
-        "Explain how a stack works and give a real-world use case.",
-        "How would you find the largest element in a binary tree?",
-      ],
-      aptitude: [
-        "If a train travels 60 km in 45 minutes, what is its speed in km/h?",
-        "A shopkeeper buys an item for ₹800 and sells it for ₹1000. What is the profit percentage?",
-        "In a group of 30 students, 18 play cricket and 15 play football. If 10 play both, how many play neither?",
-        "What comes next in the series: 2, 6, 12, 20, 30, ?",
-        "If 5 workers can complete a job in 8 days, how many days will 10 workers take?",
-      ],
-      behavioral: [
-        "Tell me about a time you had to work under a tight deadline. How did you handle it?",
-        "Describe a situation where you had a conflict with a teammate. How did you resolve it?",
-        "Tell me about a project you are most proud of and what your contribution was.",
-        "Describe a time when you had to learn something new quickly. How did you approach it?",
-        "Tell me about a time you received critical feedback. How did you respond?",
-      ],
-      "company-specific": [
-        "Why do you want to work at this company specifically?",
-        "Walk me through a challenging technical problem you solved recently.",
-        "How do you stay updated with new technologies and industry trends?",
-        "Describe your approach to writing clean, maintainable code.",
-        "Tell me about a time you improved the performance of a system or process.",
-      ],
-    };
-    const typedFallbacks = FALLBACK_QUESTIONS[config.type] || FALLBACK_QUESTIONS["company-specific"];
+  // ── Parse transcript into QA pairs ──────────────────────────────────────
+  function buildQAs(lines: TranscriptLine[]): InterviewQA[] {
+    const qas: InterviewQA[] = [];
+    let qIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].role !== "assistant") continue;
+      const questionText = lines[i].text.trim();
+      if (!questionText) continue;
+      const answerLine = lines.slice(i + 1).find((l) => l.role === "user");
+      if (!answerLine) continue;
+      qas.push({
+        index: qIndex++,
+        questionText,
+        questionTopic: config.topics?.[0] ?? config.type,
+        userTranscript: answerLine.text.trim(),
+        score: 5,
+        evaluation: "",
+        isFollowUp: false,
+        parentIndex: null,
+        timeTakenSeconds: 0,
+        answeredAt: null,
+      });
+    }
+    return qas;
+  }
 
-    async function run() {
-      let totalScore = 0;
-      let scoredCount = 0;
+  // ── Post-call processing ─────────────────────────────────────────────────
+  const handleCallEnd = useCallback(async () => {
+    if (callEndedRef.current) return;
+    callEndedRef.current = true;
+    setCallStatus("processing");
+    destroyVapiClient();
 
-      // ── Greeting ──
-      const greetingPersona = PERSONAS[config.type] || { name: "Arjun", role: "Technical Interviewer" };
-      setPhase("greeting");
-      setStatusText(`${greetingPersona.name} is introducing themselves...`);
-      const greeting = `Hello! I'm ${greetingPersona.name}, ${greetingPersona.role} at ${config.targetCompany}. Welcome to your ${config.type} interview today. We have ${config.totalQuestions} questions lined up. You can skip me at any time using the Skip button, and you can ask me to clarify any question. Let's get started!`;
-      setCurrentQuestion(greeting);
-      await speakText(greeting);
-      if (abortRef.current) return;
+    const lines = transcriptRef.current;
+    const qas = buildQAs(lines);
 
-      for (let i = 0; i < config.totalQuestions; i++) {
-        if (abortRef.current) break;
+    try {
+      await Promise.all(qas.map((qa) => saveInterviewQA(sessionId, qa)));
 
-        // Generate question
-        setPhase("generating");
-        setStatusText("Interviewer is thinking...");
-        setCurrentQuestion("");
-        setLiveTranscript("");
-        setPendingTranscript("");
-        setQuestionIndex(i);
+      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+      const res = await fetch("/api/interview/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({ type: config.type, targetCompany: config.targetCompany, qas }),
+      });
 
-        setCoachingHint("");
-        pendingConfidenceRef.current = 3;
-        setPendingConfidence(3);
+      const overallScore = qas.length > 0
+        ? Math.round(qas.reduce((s, q) => s + q.score, 0) / qas.length * 10)
+        : 50;
 
-        const runningAvg = scoredCount > 0 ? Math.round(totalScore / scoredCount) : undefined;
-
-        let question = typedFallbacks[i % typedFallbacks.length];
-        try {
-          const res = await fetchWithTimeout(
-            "/api/interview/question",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: config.type,
-                targetCompany: config.targetCompany,
-                questionIndex: i,
-                totalQuestions: config.totalQuestions,
-                previousQAs: allQAs,
-                topics: config.topics,
-                avgScore: runningAvg,
-                userId,
-              }),
-            },
-            10000
-          );
-          if (res.status === 429 && i === 0) {
-            const data = await res.json();
-            setQuotaError(data.message || "You've used your interview for this period. Upgrade for more.");
-            abortRef.current = true;
-            break;
-          }
-          const data = await res.json();
-          if (data.question) question = data.question;
-        } catch {}
-
-        if (abortRef.current) break;
-        setCurrentQuestion(question);
-
-        // Speak question (after audio ends, user can click mic to start recording)
-        userSkippedRef.current = false;
-        setPhase("speaking");
-        setStatusText("Interviewer is speaking...");
-        await speakText(question);
-        if (abortRef.current) break;
-
-        // Answer loop — user records, may ask for clarification before answering
-        let answered = false;
-        while (!answered && !abortRef.current) {
-          transcriptModeRef.current = "answer";
-          const userSpeech = await recordAndTranscribe();
-          if (abortRef.current) break;
-
-          if (transcriptModeRef.current === "question") {
-            // User asked a clarifying question
-            setPhase("clarifying");
-            setStatusText("Interviewer is responding...");
-            try {
-              const res = await fetchWithTimeout(
-                "/api/interview/clarify",
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    originalQuestion: question,
-                    userQuery: userSpeech,
-                    type: config.type,
-                  }),
-                },
-                10000
-              );
-              const data = await res.json();
-              const clarification = data.response || "Please answer based on your best understanding.";
-              setCurrentQuestion(clarification);
-              await speakText(clarification);
-              if (!abortRef.current) {
-                setCurrentQuestion(question);
-                await speakText(`So, going back to my question: ${question}`);
-              }
-            } catch {
-              await speakText("Good question! Please answer based on what you know.");
-            }
-            // loop again for actual answer
-          } else {
-            // Valid, confirmed answer — evaluate it
-            answered = true;
-            setPhase("processing");
-            setStatusText("Evaluating your answer...");
-
-            const startTime = Date.now();
-            let score = 5;
-            let evaluation = "";
-            let comment = "";
-            try {
-              const res = await fetchWithTimeout(
-                "/api/interview/evaluate",
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    question,
-                    transcript: userSpeech,
-                    type: config.type,
-                  }),
-                },
-                20000
-              );
-              const data = await res.json();
-              score = data.score ?? 5;
-              evaluation = data.evaluation ?? "";
-              comment = data.comment ?? "";
-            } catch {}
-
-            const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-            const fillerCount = countFillerWords(userSpeech);
-            const answerDuration = lastAnswerDurationRef.current;
-            const qa: InterviewQA = {
-              index: allQAs.length,
-              questionText: question,
-              questionTopic: config.type,
-              userTranscript: userSpeech,
-              score,
-              evaluation,
-              isFollowUp: false,
-              parentIndex: null,
-              timeTakenSeconds: timeTaken,
-              answeredAt: null as any,
-              fillerCount,
-              confidenceRating: pendingConfidenceRef.current,
-              answerDurationSeconds: answerDuration,
-            };
-            allQAs.push(qa);
-            setQAs([...allQAs]);
-            totalScore += score;
-            scoredCount++;
-            try {
-              await saveInterviewQA(sessionId, qa);
-              await updateInterviewSession(sessionId, { questionsCompleted: i + 1 });
-            } catch {}
-
-            // Spoken comment from interviewer after the answer
-            if (comment && !abortRef.current) {
-              userSkippedRef.current = false;
-              setPhase("speaking");
-              setStatusText("Interviewer is responding...");
-              setCurrentQuestion(comment);
-              await speakText(comment);
-              if (userSkippedRef.current && !abortRef.current) {
-                userSkippedRef.current = false;
-                answered = false;
-                setCurrentQuestion(question);
-              }
-            }
-
-            // Follow-up question for low scores (not on last question)
-            if (score < 6 && i < config.totalQuestions - 1 && !abortRef.current) {
-              setPhase("generating");
-              setStatusText("Interviewer has a follow-up question...");
-              let followUpQuestion = "";
-              try {
-                const fuRes = await fetchWithTimeout(
-                  "/api/interview/question",
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      followUp: { originalQuestion: question, userAnswer: userSpeech, score },
-                    }),
-                  },
-                  10000
-                );
-                const fuData = await fuRes.json();
-                if (fuData.question) followUpQuestion = fuData.question;
-              } catch {}
-
-              if (followUpQuestion && !abortRef.current) {
-                setCurrentQuestion(followUpQuestion);
-                setPhase("speaking");
-                setStatusText("Interviewer is asking a follow-up...");
-                await speakText(followUpQuestion);
-
-                if (!abortRef.current) {
-                  pendingConfidenceRef.current = 3;
-                  setPendingConfidence(3);
-                  transcriptModeRef.current = "answer";
-                  const fuSpeech = await recordAndTranscribe();
-
-                  if (!abortRef.current && fuSpeech && !fuSpeech.startsWith("[")) {
-                    setPhase("processing");
-                    setStatusText("Evaluating follow-up answer...");
-                    let fuScore = 5;
-                    let fuEvaluation = "";
-                    let fuComment = "";
-                    try {
-                      const evalRes = await fetchWithTimeout(
-                        "/api/interview/evaluate",
-                        {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            question: followUpQuestion,
-                            transcript: fuSpeech,
-                            type: config.type,
-                          }),
-                        },
-                        20000
-                      );
-                      const evalData = await evalRes.json();
-                      fuScore = evalData.score ?? 5;
-                      fuEvaluation = evalData.evaluation ?? "";
-                      fuComment = evalData.comment ?? "";
-                    } catch {}
-
-                    const fuQA: InterviewQA = {
-                      index: allQAs.length,
-                      questionText: followUpQuestion,
-                      questionTopic: config.type,
-                      userTranscript: fuSpeech,
-                      score: fuScore,
-                      evaluation: fuEvaluation,
-                      isFollowUp: true,
-                      parentIndex: allQAs.length - 1,
-                      timeTakenSeconds: 0,
-                      answeredAt: null as any,
-                      fillerCount: countFillerWords(fuSpeech),
-                      confidenceRating: pendingConfidenceRef.current,
-                      answerDurationSeconds: lastAnswerDurationRef.current,
-                    };
-                    allQAs.push(fuQA);
-                    setQAs([...allQAs]);
-                    totalScore += fuScore;
-                    scoredCount++;
-                    try { await saveInterviewQA(sessionId, fuQA); } catch {}
-
-                    if (fuComment && !abortRef.current) {
-                      setPhase("speaking");
-                      setStatusText("Interviewer is responding...");
-                      setCurrentQuestion(fuComment);
-                      await speakText(fuComment);
-                    }
-                  }
-                }
-              }
-            }
-
-            // Coaching hint in practice mode for low scores
-            if (config.mode === "practice" && score < 6 && evaluation) {
-              const firstSentence = evaluation.split(". ")[0];
-              setCoachingHint(firstSentence.endsWith(".") ? firstSentence : firstSentence + ".");
-            }
-          }
-        }
+      if (res.ok) {
+        const fb = await res.json();
+        const feedbackDoc: InterviewFeedback = {
+          sessionId,
+          userId,
+          overallScore: fb.overallScore ?? overallScore,
+          summary: fb.summary ?? "",
+          strengths: fb.strengths ?? [],
+          weaknesses: fb.weaknesses ?? [],
+          topicScores: fb.topicScores ?? {},
+          suggestions: fb.suggestions ?? [],
+          generatedAt: null as any,
+        };
+        await saveInterviewFeedback(feedbackDoc);
+        await completeInterviewSession(sessionId, feedbackDoc.overallScore);
+      } else {
+        await completeInterviewSession(sessionId, overallScore);
       }
-
-      if (!abortRef.current && allQAs.length > 0) {
-        await generateFeedback(allQAs);
-      }
+    } catch (err) {
+      console.error("Post-call processing error:", err);
     }
 
-    run();
+    router.push(`/interview/${sessionId}/feedback`);
+  }, [sessionId, userId, config, router]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Start/stop countdown when call goes active ───────────────────────────
+  useEffect(() => {
+    if (callStatus === "active") {
+      timerRef.current = setInterval(() => {
+        setSecondsLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            timerRef.current = null;
+            try { getVapiClient().stop(); } catch {}
+            handleCallEnd();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [callStatus, handleCallEnd]);
+
+  // ── Start Vapi call on mount ─────────────────────────────────────────────
+  useEffect(() => {
+    const vapi = getVapiClient();
+
+    vapi.on("call-start", () => setCallStatus("active"));
+    vapi.on("call-end", () => handleCallEnd());
+    vapi.on("speech-start", () => setIsSpeaking(true));
+    vapi.on("speech-end", () => setIsSpeaking(false));
+
+    vapi.on("message", (msg: any) => {
+      if (msg.type !== "transcript") return;
+      const role = msg.role as "assistant" | "user";
+      const text: string = msg.transcript ?? "";
+
+      setTranscript((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === role) return [...prev.slice(0, -1), { role, text }];
+        return [...prev, { role, text }];
+      });
+    });
+
+    vapi.on("error", (err: any) => {
+      const msg: string = err?.message ?? err?.errorMessage ?? "";
+      // "Meeting ended due to ejection" is normal call termination, not a real error
+      if (!msg || msg.toLowerCase().includes("ejection") || msg.toLowerCase().includes("meeting has ended")) {
+        return;
+      }
+      console.error("Vapi error:", err);
+      setErrorMsg(msg || "An error occurred. Please try again.");
+      setCallStatus("error");
+    });
+
+    // Start the call — override system prompt and first message with user's context
+    vapi
+      .start(process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID!, {
+        firstMessage: buildFirstMessage(config),
+        model: {
+          provider: "groq",
+          model: "llama-3.1-8b-instant",
+          messages: [{ role: "system", content: buildSystemPrompt(config) }],
+          maxTokens: 250,
+        },
+      } as any)
+      .catch((err: any) => {
+        console.error("Failed to start Vapi call:", err);
+        setErrorMsg("Could not connect to the interviewer. Please check your microphone and try again.");
+        setCallStatus("error");
+      });
 
     return () => {
-      abortRef.current = true;
-      stopCurrentAudio();
-      stopRecordingRef.current?.();
-      startRecordingTriggerRef.current?.();
-      confirmResultRef.current?.confirm();
       if (timerRef.current) clearInterval(timerRef.current);
+      try { vapi.stop(); } catch {}
+      destroyVapiClient();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Derived state for UI ─────────────────────────────────────────────────
-  const isWaitingToRecord = phase === "waiting_to_record";
-  const isRecording = phase === "listening";
-  const isConfirming = phase === "confirming_transcript";
-  const isSpeaking = phase === "speaking" || phase === "greeting";
-  const isBusy =
-    phase === "generating" ||
-    phase === "processing" ||
-    phase === "wrapping_up" ||
-    phase === "clarifying";
+  function handleEndCall() {
+    if (!endConfirm) { setEndConfirm(true); return; }
+    setCallStatus("ending");
+    if (timerRef.current) clearInterval(timerRef.current);
+    try { getVapiClient().stop(); } catch {}
+  }
+
+  // ── Timer display helpers ────────────────────────────────────────────────
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const timerLabel = `${mins}:${String(secs).padStart(2, "0")}`;
+  const timerPct = (secondsLeft / totalSeconds) * 100;
+  const timerColor =
+    timerPct > 40 ? "bg-green-500" :
+    timerPct > 15 ? "bg-yellow-500" : "bg-red-500";
+
+  // ── Render ───────────────────────────────────────────────────────────────
+
+  if (callStatus === "processing") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <span className="material-symbols-outlined text-primary text-5xl animate-spin">
+          progress_activity
+        </span>
+        <p className="text-on-surface-variant text-sm">Generating your feedback report...</p>
+      </div>
+    );
+  }
+
+  if (callStatus === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+        <span className="material-symbols-outlined text-error text-5xl">error</span>
+        <p className="text-on-surface font-medium">{errorMsg || "Something went wrong."}</p>
+        <button
+          onClick={() => router.push("/interview/new")}
+          className="px-6 py-2.5 rounded-lg gradient-primary text-on-primary text-sm font-medium hover:opacity-90 transition-opacity"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
-      {/* Interviewer persona card */}
-      <div className="flex items-center gap-3 px-1">
-        <div className="w-10 h-10 rounded-full bg-primary-container/20 border border-primary-brand/20 flex items-center justify-center shrink-0">
-          <span className="material-symbols-outlined text-[20px] text-primary-brand">person</span>
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-medium text-on-surface">{persona.name}</p>
-          <p className="text-xs text-on-surface-variant">{persona.role} · {config.targetCompany}</p>
-        </div>
-        <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${
-          config.mode === "practice"
-            ? "bg-blue-500/10 text-blue-400"
-            : "bg-orange-500/10 text-orange-400"
-        }`}>
-          {config.mode === "practice" ? "Practice" : "Exam"}
-        </span>
-      </div>
+    <div className="flex flex-col gap-6 max-w-3xl mx-auto">
 
-      <InterviewProgress current={questionIndex} total={config.totalQuestions} />
-
-      {/* Status pill */}
-      <div
-        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-          isRecording
-            ? "bg-green-400/10 border border-green-400/25"
-            : isWaitingToRecord
-            ? "bg-blue-400/10 border border-blue-400/25"
-            : isConfirming
-            ? "bg-primary-container/10 border border-primary-brand/25"
-            : isSpeaking
-            ? "bg-primary-container/10 border border-primary-brand/25"
-            : "bg-surface-container subtle-border"
-        }`}
-      >
-        {isBusy && (
-          <span className="material-symbols-outlined text-[18px] text-primary-brand animate-spin">
-            progress_activity
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-2.5 h-2.5 rounded-full ${
+            callStatus === "connecting" ? "bg-yellow-500 animate-pulse" :
+            callStatus === "active" ? "bg-green-500" : "bg-outline"
+          }`} />
+          <span className="text-on-surface font-medium text-sm">
+            {callStatus === "connecting" ? "Connecting..." :
+             callStatus === "active" ? "Interview in progress" : "Ending call..."}
           </span>
-        )}
-        {isRecording && (
-          <span className="material-symbols-outlined text-[18px] text-green-400 animate-pulse">
-            mic
-          </span>
-        )}
-        {isWaitingToRecord && (
-          <span className="material-symbols-outlined text-[18px] text-blue-400">
-            mic_none
-          </span>
-        )}
-        {isConfirming && (
-          <span className="material-symbols-outlined text-[18px] text-primary-brand">
-            rate_review
-          </span>
-        )}
-        {isSpeaking && (
-          <span className="material-symbols-outlined text-[18px] text-primary-brand">
-            record_voice_over
-          </span>
-        )}
-        <span className="text-sm text-on-surface-variant">{statusText}</span>
-
-        {/* Skip button — visible during TTS playback */}
-        {(phase === "speaking" || phase === "greeting") && (
-          <button
-            onClick={() => { userSkippedRef.current = true; stopCurrentAudio(); }}
-            className="ml-auto text-xs px-3 py-1 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-on-surface subtle-border transition-colors flex items-center gap-1.5 shrink-0"
-          >
-            <span className="material-symbols-outlined text-[14px]">skip_next</span>
-            Skip
-          </button>
-        )}
-      </div>
-
-      {/* Interview quota reached */}
-      {quotaError && (
-        <div className="bg-red-500/10 border border-red-400/25 rounded-xl px-4 py-3 text-sm text-red-400 space-y-1">
-          <p className="font-medium">Interview limit reached</p>
-          <p>{quotaError}</p>
-          <a href="/pricing" className="underline hover:no-underline text-xs">View plans →</a>
-        </div>
-      )}
-
-      {/* Mic permission error */}
-      {micError && (
-        <div className="bg-red-500/10 border border-red-400/25 rounded-xl px-4 py-3 text-sm text-red-400">
-          {micError}
-        </div>
-      )}
-
-      {/* Conversation window */}
-      <div className="rounded-xl bg-surface-container-low subtle-border p-4 min-h-[320px] max-h-[460px] overflow-y-auto space-y-4">
-        <InterviewTranscript
-          qas={qas}
-          currentQuestion={(isRecording || isSpeaking || isWaitingToRecord) ? currentQuestion : undefined}
-        />
-
-        {/* User's pending transcript preview (recording phase) */}
-        {isRecording && liveTranscript && (
-          <div className="flex gap-3 justify-end">
-            <div className="flex-1 max-w-[85%] ml-auto bg-primary-container/10 rounded-xl rounded-tr-sm p-3 border border-primary-brand/15">
-              <p className="text-sm text-on-surface leading-relaxed">{liveTranscript}</p>
+          {/* Context pills */}
+          {callStatus === "active" && (
+            <div className="hidden sm:flex items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-xs">
+                {config.targetCompany}
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-xs capitalize">
+                {config.type.replace("-", " ")}
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-xs capitalize">
+                {config.mode}
+              </span>
             </div>
-            <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">person</span>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Waiting dots during recording */}
-        {isRecording && !liveTranscript && (
-          <div className="flex gap-3 justify-end">
-            <div className="bg-surface-container rounded-xl rounded-tr-sm px-4 py-3 border border-outline-variant/10">
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-outline-variant animate-bounce [animation-delay:0ms]" />
-                <span className="w-2 h-2 rounded-full bg-outline-variant animate-bounce [animation-delay:150ms]" />
-                <span className="w-2 h-2 rounded-full bg-outline-variant animate-bounce [animation-delay:300ms]" />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── WAITING TO RECORD: big mic button ── */}
-      {isWaitingToRecord && (
-        <div className="flex flex-col items-center gap-4 py-3">
-          <p className="text-xs text-on-surface-variant text-center">
-            Listen to the question, then click the microphone to start recording your answer.
-          </p>
-          <button
-            onClick={() => startRecordingTriggerRef.current?.()}
-            className="group relative w-20 h-20 rounded-full bg-blue-400/10 border-2 border-blue-400 flex items-center justify-center hover:bg-blue-400/20 transition-all active:scale-95"
-          >
-            <span className="material-symbols-outlined text-[36px] text-blue-400">mic</span>
-            <div className="absolute inset-0 rounded-full border-2 border-blue-400 opacity-0 group-hover:opacity-30 group-hover:scale-110 transition-all" />
-          </button>
-          <p className="text-xs font-medium text-blue-400">Click to Answer</p>
-          {phase === "waiting_to_record" && currentQuestion && (
+        <div className="flex items-center gap-2">
+          {endConfirm ? (
+            <>
+              <span className="text-on-surface-variant text-xs">End interview?</span>
+              <button
+                onClick={() => setEndConfirm(false)}
+                className="px-3 py-1.5 rounded-lg text-xs text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEndCall}
+                className="px-3 py-1.5 rounded-lg text-xs text-on-error bg-error hover:opacity-90 transition-opacity"
+              >
+                End
+              </button>
+            </>
+          ) : (
             <button
-              onClick={() => speakText(currentQuestion)}
-              className="flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-on-surface transition-colors px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high"
+              onClick={handleEndCall}
+              disabled={callStatus !== "active"}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-error-container text-on-error-container hover:opacity-90 transition-opacity disabled:opacity-40"
             >
-              <span className="material-symbols-outlined text-[16px]">replay</span>
-              Hear question again
+              <span className="material-symbols-outlined text-[16px]">call_end</span>
+              End
             </button>
           )}
         </div>
+      </div>
+
+      {/* Timer bar */}
+      {callStatus === "active" && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-on-surface-variant flex items-center gap-1">
+              <span className="material-symbols-outlined text-[14px]">timer</span>
+              Time remaining
+            </span>
+            <span className={`font-mono font-medium ${secondsLeft < 60 ? "text-red-500" : "text-on-surface"}`}>
+              {timerLabel}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ${timerColor}`}
+              style={{ width: `${timerPct}%` }}
+            />
+          </div>
+        </div>
       )}
 
-      {/* ── RECORDING: controls ── */}
-      {isRecording && (
-        <div className="flex flex-col items-center gap-3 py-2">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-green-400/10 border-2 border-green-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[30px] text-green-400">mic</span>
-            </div>
-            <div className="absolute inset-0 rounded-full border-2 border-green-400 animate-ping opacity-25" />
-          </div>
-          <p className="text-xs text-on-surface-variant text-center">
-            Recording
-            {recordingSeconds > 0 ? ` · ${recordingSeconds}s` : " · speak now"}
-            {recordingSeconds >= 150 && " · auto-stopping soon"}
+      {/* Interviewer card */}
+      <div className="rounded-2xl bg-surface-container-low subtle-border p-5 flex items-center gap-4">
+        <div className={`relative w-12 h-12 rounded-full flex items-center justify-center gradient-primary shrink-0 ${isSpeaking ? "ring-4 ring-primary/30" : ""}`}>
+          <span className="material-symbols-outlined text-on-primary text-xl">record_voice_over</span>
+          {isSpeaking && (
+            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-surface" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-on-surface font-medium text-sm">Emma</p>
+          <p className="text-on-surface-variant text-xs">
+            {isSpeaking ? "Speaking..." : callStatus === "active" ? "Listening" : "Connecting..."}
           </p>
-          <div className="flex gap-3 flex-wrap justify-center">
-            <button
-              onClick={() => {
-                transcriptModeRef.current = "answer";
-                stopRecordingRef.current?.();
-              }}
-              className="text-xs px-5 py-2 rounded-lg bg-green-400/15 text-green-400 border border-green-400/30 hover:bg-green-400/25 transition-colors flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[14px]">stop_circle</span>
-              Done answering
-            </button>
-            <button
-              onClick={() => {
-                transcriptModeRef.current = "question";
-                stopRecordingRef.current?.();
-              }}
-              className="text-xs px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-on-surface subtle-border transition-colors flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[14px]">help</span>
-              Ask interviewer
-            </button>
-          </div>
         </div>
-      )}
-
-      {/* ── CONFIRMING TRANSCRIPT: review before evaluation ── */}
-      {isConfirming && (
-        <div className="rounded-xl bg-surface-container subtle-border p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-primary-brand">rate_review</span>
-            <h4 className="text-on-surface text-sm font-medium">Your Answer</h4>
-            <span className="text-outline text-xs ml-auto">Review before submitting</span>
+        {/* Animated sound bars when speaking */}
+        {isSpeaking && (
+          <div className="flex items-end gap-0.5 h-5 shrink-0">
+            {[3, 5, 4, 6, 3].map((h, i) => (
+              <div
+                key={i}
+                className="w-1 rounded-full bg-primary-brand animate-pulse"
+                style={{ height: `${h * 3}px`, animationDelay: `${i * 100}ms` }}
+              />
+            ))}
           </div>
-          <div className="rounded-lg bg-surface-container-low p-3 border border-outline-variant/15">
-            <p className="text-on-surface text-sm leading-relaxed">{pendingTranscript}</p>
-          </div>
-          {/* Confidence rating */}
-          <div className="space-y-2">
-            <p className="text-xs text-on-surface-variant">How confident were you in your answer?</p>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => { pendingConfidenceRef.current = n; setPendingConfidence(n); }}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    pendingConfidence === n
-                      ? "bg-primary-container/20 text-primary-brand border border-primary-brand/30"
-                      : "bg-surface-container-low text-on-surface-variant hover:text-on-surface"
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <div className="flex justify-between text-[10px] text-on-surface-variant px-0.5">
-              <span>Not confident</span>
-              <span>Very confident</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 justify-end">
-            <button
-              onClick={() => confirmResultRef.current?.retry()}
-              className="text-xs px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-on-surface subtle-border transition-colors flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[14px]">replay</span>
-              Record again
-            </button>
-            <button
-              onClick={() => confirmResultRef.current?.confirm()}
-              className="text-xs px-5 py-2 rounded-lg bg-primary-container/20 text-primary-brand border border-primary-brand/25 hover:bg-primary-container/30 transition-colors flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[14px]">check</span>
-              Submit answer
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Coaching hint (practice mode) */}
-      {coachingHint && config.mode === "practice" && (
-        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-500/5 border border-blue-400/20">
-          <span className="material-symbols-outlined text-[18px] text-blue-400 shrink-0 mt-0.5">lightbulb</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-blue-400 mb-0.5">Coach&apos;s Tip</p>
-            <p className="text-xs text-on-surface-variant leading-relaxed">{coachingHint}</p>
-          </div>
-          <button
-            onClick={() => setCoachingHint("")}
-            className="text-outline hover:text-on-surface-variant transition-colors shrink-0"
-          >
-            <span className="material-symbols-outlined text-[16px]">close</span>
-          </button>
-        </div>
-      )}
-
-      {/* Notes scratchpad */}
-      <div className="rounded-xl bg-surface-container subtle-border overflow-hidden">
-        <button
-          onClick={() => setNotesOpen((o) => !o)}
-          className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-on-surface-variant hover:text-on-surface transition-colors"
-        >
-          <span className="material-symbols-outlined text-[16px]">edit_note</span>
-          <span>Notes scratchpad</span>
-          <span className="material-symbols-outlined text-[16px] ml-auto transition-transform duration-150" style={{ transform: notesOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-            expand_more
-          </span>
-        </button>
-        {notesOpen && (
-          <textarea
-            value={notesText}
-            onChange={(e) => setNotesText(e.target.value)}
-            placeholder="Jot down ideas, key points, or anything to help you answer..."
-            rows={4}
-            className="w-full px-4 pb-3 bg-transparent text-on-surface text-xs leading-relaxed resize-none outline-none placeholder:text-outline"
-          />
         )}
       </div>
 
-      {/* End interview early */}
-      {qas.length > 0 && !isBusy && !isWaitingToRecord && !isRecording && !isConfirming && (
-        <div className="text-center pt-2">
-          <button
-            onClick={() => {
-              abortRef.current = true;
-              stopCurrentAudio();
-              stopRecordingRef.current?.();
-              startRecordingTriggerRef.current?.();
-              confirmResultRef.current?.confirm();
-              if (timerRef.current) clearInterval(timerRef.current);
-              setTimeout(() => generateFeedback(qasRef.current), 200);
-            }}
-            className="text-xs text-on-surface-variant hover:text-error transition-colors underline underline-offset-2"
-          >
-            End interview early
-          </button>
-        </div>
+      {/* Live transcript */}
+      <div
+        ref={scrollRef}
+        className="flex flex-col gap-3 min-h-[300px] max-h-[400px] overflow-y-auto rounded-2xl bg-surface-container-low subtle-border p-5"
+      >
+        {transcript.length === 0 ? (
+          <p className="text-on-surface-variant text-sm text-center my-auto">
+            {callStatus === "connecting"
+              ? "Connecting to Emma..."
+              : "Interview starting — Emma will speak first..."}
+          </p>
+        ) : (
+          transcript.map((line, i) => (
+            <div key={i} className={`flex gap-3 ${line.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+              <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-medium mt-0.5 ${
+                line.role === "assistant"
+                  ? "gradient-primary text-on-primary"
+                  : "bg-surface-container-high text-on-surface"
+              }`}>
+                {line.role === "assistant" ? "E" : "Y"}
+              </div>
+              <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                line.role === "assistant"
+                  ? "bg-surface-container text-on-surface rounded-tl-sm"
+                  : "bg-primary/10 text-on-surface rounded-tr-sm"
+              }`}>
+                {line.text}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {callStatus === "active" && (
+        <p className="text-center text-on-surface-variant text-xs">
+          <span className="material-symbols-outlined text-[14px] align-middle mr-1">mic</span>
+          Your microphone is active — speak naturally to respond
+        </p>
       )}
     </div>
   );

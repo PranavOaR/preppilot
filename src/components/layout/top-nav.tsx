@@ -87,7 +87,7 @@ export function TopNav() {
     : 0;
 
   return (
-    <>
+    <div id="top-nav">
       {/* Plan Expiry Banner */}
       {(showExpiringSoon || showExpired) && (
         <div className="sticky top-0 z-[60] bg-yellow-500/10 border-b border-yellow-500/20 px-6 py-2 flex items-center justify-between gap-4">
@@ -363,6 +363,6 @@ export function TopNav() {
         </div>
       </div>
     )}
-    </>
+    </div>
   );
 }

@@ -149,3 +149,6 @@
 .animate-fade-in-up {
   animation: fade-in-up 200ms ease-out both;
 }
+
+/* Hide top nav when proctored fullscreen is active (interview / contest) */
+body[data-proctor="active"] #top-nav { display: none !important; }

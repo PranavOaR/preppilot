@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { SUPPORTED_LANGUAGES } from "@/lib/sarvam/voices";
 import type { InterviewType, InterviewConfig } from "@/lib/types/interview";
 
 const INTERVIEW_TYPES: { type: InterviewType; label: string; icon: string; description: string }[] = [
@@ -17,7 +16,12 @@ const COMPANIES = [
   "HCL", "Tech Mahindra", "Cognizant",
 ];
 
-const QUESTION_COUNTS = [3, 5, 7, 10];
+const DURATIONS = [
+  { minutes: 5,  label: "5 min",  sublabel: "Quick warm-up" },
+  { minutes: 10, label: "10 min", sublabel: "Standard" },
+  { minutes: 15, label: "15 min", sublabel: "Deep dive" },
+  { minutes: 20, label: "20 min", sublabel: "Full round" },
+];
 
 const DSA_TOPICS = [
   "Arrays", "Strings", "Two Pointers", "Binary Search",
@@ -26,22 +30,15 @@ const DSA_TOPICS = [
   "Backtracking", "Hash Tables", "Matrix", "Bit Manipulation",
 ];
 
-const SPEAKERS = [
-  { id: "anushka", label: "Anushka", icon: "face_3", description: "Female voice" },
-  { id: "abhilash", label: "Abhilash", icon: "face", description: "Male voice" },
-];
-
 interface InterviewSetupProps {
   onStart: (config: InterviewConfig) => void;
   defaultCompany?: string;
 }
 
 export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps) {
-  const [type, setType] = useState<InterviewType>("dsa");
+  const [type, setType] = useState<InterviewType>("behavioral");
   const [company, setCompany] = useState(defaultCompany || "TCS");
-  const [questionCount, setQuestionCount] = useState(5);
-  const [language, setLanguage] = useState("en-IN");
-  const [speaker, setSpeaker] = useState("meera");
+  const [durationMinutes, setDurationMinutes] = useState(10);
   const [mode, setMode] = useState<"practice" | "exam">("practice");
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
@@ -55,9 +52,7 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
     onStart({
       type,
       targetCompany: company,
-      totalQuestions: questionCount,
-      language,
-      speaker,
+      durationMinutes,
       mode,
       topics: type === "dsa" && selectedTopics.length > 0 ? selectedTopics : undefined,
     });
@@ -68,7 +63,7 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-medium text-on-surface">Mock Interview</h1>
         <p className="text-on-surface-variant text-sm">
-          Practice with an AI interviewer. Answer verbally — just like a real interview.
+          Set up your session and Emma, your AI interviewer, will tailor every question to your choices.
         </p>
       </div>
 
@@ -104,13 +99,13 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
         </div>
       </div>
 
-      {/* DSA Topic Focus (only for DSA type) */}
+      {/* DSA Topic Focus */}
       {type === "dsa" && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-on-surface text-sm font-medium">Topic Focus</h3>
             <span className="text-on-surface-variant text-xs">
-              {selectedTopics.length === 0 ? "All topics (no filter)" : `${selectedTopics.length} selected`}
+              {selectedTopics.length === 0 ? "All topics" : `${selectedTopics.length} selected`}
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -151,21 +146,24 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
         </div>
       </div>
 
-      {/* Question Count */}
+      {/* Duration */}
       <div className="space-y-3">
-        <h3 className="text-on-surface text-sm font-medium">Number of Questions</h3>
-        <div className="flex gap-3">
-          {QUESTION_COUNTS.map((n) => (
+        <h3 className="text-on-surface text-sm font-medium">Interview Duration</h3>
+        <div className="grid grid-cols-4 gap-3">
+          {DURATIONS.map((d) => (
             <button
-              key={n}
-              onClick={() => setQuestionCount(n)}
-              className={`w-14 h-10 rounded-lg text-sm font-medium transition-colors ${
-                questionCount === n
+              key={d.minutes}
+              onClick={() => setDurationMinutes(d.minutes)}
+              className={`p-3 rounded-lg text-center transition-all ${
+                durationMinutes === d.minutes
                   ? "gradient-primary text-on-primary"
                   : "bg-surface-container text-on-surface-variant hover:text-on-surface"
               }`}
             >
-              {n}
+              <p className="text-sm font-medium">{d.label}</p>
+              <p className={`text-xs mt-0.5 ${durationMinutes === d.minutes ? "text-on-primary/70" : "text-on-surface-variant"}`}>
+                {d.sublabel}
+              </p>
             </button>
           ))}
         </div>
@@ -192,7 +190,7 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
               </span>
             </div>
             <p className="text-xs text-on-surface-variant pl-6">
-              Get coaching tips after low-scoring answers
+              Emma gives hints and encouragement after weak answers
             </p>
           </button>
           <button
@@ -212,63 +210,33 @@ export function InterviewSetup({ onStart, defaultCompany }: InterviewSetupProps)
               </span>
             </div>
             <p className="text-xs text-on-surface-variant pl-6">
-              No hints — simulate a real interview
+              Strict simulation — no hints, just like the real thing
             </p>
           </button>
         </div>
       </div>
 
-      {/* Voice Language */}
-      <div className="space-y-3">
-        <h3 className="text-on-surface text-sm font-medium">Voice Language</h3>
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="w-full px-4 py-2.5 rounded-lg bg-surface-container text-on-surface text-sm border border-outline-variant/20 focus:border-primary-brand/50 outline-none"
-        >
-          {SUPPORTED_LANGUAGES.map((lang) => (
-            <option key={lang.code} value={lang.code}>
-              {lang.label}
-            </option>
-          ))}
-        </select>
+      {/* Context summary */}
+      <div className="rounded-xl bg-surface-container-low subtle-border p-4 flex items-start gap-3">
+        <span className="material-symbols-outlined text-primary-brand text-[20px] mt-0.5">auto_awesome</span>
+        <p className="text-on-surface-variant text-xs leading-relaxed">
+          Emma will be briefed on your choices before the call starts —{" "}
+          <span className="text-on-surface font-medium">{company}</span>,{" "}
+          <span className="text-on-surface font-medium capitalize">{type.replace("-", " ")}</span>
+          {selectedTopics.length > 0 && (
+            <> focusing on <span className="text-on-surface font-medium">{selectedTopics.slice(0, 2).join(", ")}{selectedTopics.length > 2 ? ` +${selectedTopics.length - 2} more` : ""}</span></>
+          )}
+          , <span className="text-on-surface font-medium">{durationMinutes} minutes</span>,{" "}
+          <span className="text-on-surface font-medium capitalize">{mode}</span> mode.
+        </p>
       </div>
 
-      {/* Interviewer Voice */}
-      <div className="space-y-3">
-        <h3 className="text-on-surface text-sm font-medium">Interviewer Voice</h3>
-        <div className="flex gap-3">
-          {SPEAKERS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSpeaker(s.id)}
-              className={`flex-1 flex items-center gap-3 p-3 rounded-lg transition-all ${
-                speaker === s.id
-                  ? "bg-primary-container/15 border border-primary-brand/40"
-                  : "bg-surface-container border border-transparent hover:bg-surface-container-high"
-              }`}
-            >
-              <span className={`material-symbols-outlined text-[22px] ${speaker === s.id ? "text-primary-brand" : "text-outline"}`}>
-                {s.icon}
-              </span>
-              <div className="text-left">
-                <p className={`text-sm font-medium ${speaker === s.id ? "text-primary-brand" : "text-on-surface"}`}>
-                  {s.label}
-                </p>
-                <p className="text-xs text-on-surface-variant">{s.description}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Microphone Permission Notice */}
+      {/* Mic notice */}
       <div className="flex items-center gap-3 p-3 rounded-lg bg-surface-container-low text-on-surface-variant text-xs">
         <span className="material-symbols-outlined text-[18px] text-primary-brand">mic</span>
-        <span>This feature requires microphone access. You&apos;ll be prompted to allow it when the interview starts.</span>
+        <span>Microphone access is required. You&apos;ll be prompted when the interview starts.</span>
       </div>
 
-      {/* Start Button */}
       <button
         onClick={handleStart}
         className="w-full py-3 rounded-lg gradient-primary text-on-primary font-medium text-sm hover:opacity-90 transition-opacity"

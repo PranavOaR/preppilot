@@ -49,9 +49,7 @@ export default function InterviewSessionPage() {
   const config: InterviewConfig = {
     type: session.type,
     targetCompany: session.targetCompany,
-    totalQuestions: session.totalQuestions,
-    language: session.language,
-    speaker: session.speaker || "anushka",
+    durationMinutes: session.durationMinutes ?? 10,
     mode: session.mode || "practice",
     topics: session.topics,
   };

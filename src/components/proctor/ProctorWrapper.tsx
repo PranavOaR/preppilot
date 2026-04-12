@@ -11,14 +11,10 @@ interface ProctorWrapperProps {
 /**
  * Wraps a page in fullscreen enforcement.
  * Attempts to enter fullscreen on mount; shows a blocking overlay if not in fullscreen.
- * Internally uses useProctor to track and penalize violations.
+ * Uses a body[data-proctor] attribute to reliably hide the navbar via CSS.
  */
 export function ProctorWrapper({ children, enabled = true }: ProctorWrapperProps) {
-  // Initialize to false so the overlay shows until fullscreen is confirmed —
-  // prevents the content flash that occurred with the previous useState(true).
   const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // Track violation count to show message in overlay
   const [violations, setViolations] = useState(0);
 
   useProctor(enabled, (count) => setViolations(count));
@@ -26,31 +22,45 @@ export function ProctorWrapper({ children, enabled = true }: ProctorWrapperProps
   useEffect(() => {
     if (!enabled) return;
 
-    const onFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+    function syncState() {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      if (fs) {
+        document.body.setAttribute("data-proctor", "active");
+      } else {
+        document.body.removeAttribute("data-proctor");
+      }
+    }
 
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", syncState);
 
-    // Attempt auto-enter fullscreen (works when page was reached via user interaction)
+    // Sync immediately in case we're already fullscreen (e.g. page reload)
+    syncState();
+
+    // Attempt auto-enter fullscreen, then sync state from the resolved promise
+    // (avoids the React Strict Mode double-invocation timing gap)
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {
-        // Browser may block; overlay will prompt the user instead
-        setIsFullscreen(false);
-      });
+      document.documentElement.requestFullscreen()
+        .then(syncState)
+        .catch(() => {
+          // Browser blocked auto-fullscreen — overlay will prompt the user
+        });
     }
 
     return () => {
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("fullscreenchange", syncState);
+      document.body.removeAttribute("data-proctor");
     };
   }, [enabled]);
 
   async function enterFullscreen() {
     try {
       await document.documentElement.requestFullscreen();
+      // Explicitly sync after the user-gesture fullscreen resolves
+      setIsFullscreen(true);
+      document.body.setAttribute("data-proctor", "active");
     } catch {
-      // ignore
+      // ignore — browser may deny even on user gesture in some configs
     }
   }
 
@@ -85,7 +95,7 @@ export function ProctorWrapper({ children, enabled = true }: ProctorWrapperProps
             onClick={enterFullscreen}
             className="px-6 py-3 rounded-lg gradient-primary text-on-primary text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            Return to Fullscreen
+            Enter Fullscreen
           </button>
         </div>
       )}

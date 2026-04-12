@@ -17,11 +17,13 @@ export type InterviewState =
 export interface InterviewConfig {
   type: InterviewType;
   targetCompany: string;
-  totalQuestions: number;
-  language: string;   // TTS/STT language code e.g. "en-IN"
-  speaker: string;    // "meera" | "arvind"
+  durationMinutes: number;
   mode: "practice" | "exam";
   topics?: string[];  // optional topic focus (DSA only)
+  // legacy — kept so old in-progress sessions can resume
+  language?: string;
+  speaker?: string;
+  totalQuestions?: number;
 }
 
 export interface InterviewSession {
@@ -29,16 +31,18 @@ export interface InterviewSession {
   userId: string;
   type: InterviewType;
   targetCompany: string;
-  language: string;
-  speaker: string;
+  durationMinutes: number;
   mode: "practice" | "exam";
   topics?: string[];
-  totalQuestions: number;
   questionsCompleted: number;
   status: "in-progress" | "completed" | "abandoned";
   overallScore: number | null;
   startedAt: Timestamp;
   completedAt: Timestamp | null;
+  // legacy fields
+  language?: string;
+  speaker?: string;
+  totalQuestions?: number;
 }
 
 export interface InterviewQA {
