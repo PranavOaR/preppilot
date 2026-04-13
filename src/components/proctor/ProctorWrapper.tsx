@@ -34,18 +34,11 @@ export function ProctorWrapper({ children, enabled = true }: ProctorWrapperProps
 
     document.addEventListener("fullscreenchange", syncState);
 
-    // Sync immediately in case we're already fullscreen (e.g. page reload)
+    // Sync immediately in case we're already fullscreen (e.g. navigating back)
     syncState();
 
-    // Attempt auto-enter fullscreen, then sync state from the resolved promise
-    // (avoids the React Strict Mode double-invocation timing gap)
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen()
-        .then(syncState)
-        .catch(() => {
-          // Browser blocked auto-fullscreen — overlay will prompt the user
-        });
-    }
+    // No auto-requestFullscreen — browsers block it without a user gesture.
+    // The overlay button is the only entry point.
 
     return () => {
       document.removeEventListener("fullscreenchange", syncState);
