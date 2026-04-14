@@ -9,106 +9,135 @@ interface MasterySidebarProps {
 }
 
 export function MasterySidebar({ roadmap, streak }: MasterySidebarProps) {
-  // Count statuses across all sections
   const allTopics = roadmap.sections.flatMap((s) => s.topics);
   const completed = allTopics.filter((t) => t.status === "completed").length;
   const inProgress = allTopics.filter((t) => t.status === "in-progress").length;
   const recommended = allTopics.filter((t) => t.status === "recommended").length;
+  const notStarted = allTopics.filter(
+    (t) => t.status === "not-started"
+  ).length;
+
+  const mastery = roadmap.globalMastery;
+
+  // SVG ring dimensions
+  const r = 36;
+  const circ = 2 * Math.PI * r;
+  const dash = (mastery / 100) * circ;
 
   return (
-    <div className="space-y-4">
-      {/* Global Mastery */}
-      <div className="rounded-lg bg-surface-container-low p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-on-surface-variant text-sm font-medium">
-            Global Mastery
-          </h4>
-          <span className="text-primary-brand font-mono text-sm font-semibold">
-            {roadmap.globalMastery}%
+    <div className="space-y-3">
+      {/* Mastery ring */}
+      <div className="rounded-xl bg-surface-container-low subtle-border p-5">
+        <div className="flex items-center gap-4">
+          <div className="relative shrink-0 w-20 h-20">
+            <svg className="w-20 h-20 -rotate-90" viewBox="0 0 88 88">
+              <circle
+                cx="44"
+                cy="44"
+                r={r}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="7"
+                className="text-surface-container-high"
+              />
+              <circle
+                cx="44"
+                cy="44"
+                r={r}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="7"
+                strokeLinecap="round"
+                strokeDasharray={`${dash} ${circ}`}
+                className="text-primary-brand transition-all duration-700"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="font-mono font-semibold text-on-surface text-base">
+                {mastery}%
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="text-on-surface text-sm font-semibold">Global Mastery</p>
+            <p className="text-on-surface-variant text-xs mt-0.5">
+              {roadmap.totalSolved} / {roadmap.totalProblems} problems
+            </p>
+            <p className="text-outline text-xs mt-1">
+              For{" "}
+              <span className="text-primary-brand font-medium">
+                {roadmap.companyName}
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress breakdown */}
+      <div className="rounded-xl bg-surface-container-low subtle-border p-4">
+        <p className="text-on-surface-variant text-xs font-medium uppercase tracking-wider mb-3">
+          Breakdown
+        </p>
+        <div className="space-y-2">
+          {[
+            { label: "Completed", count: completed, dot: "bg-green-400" },
+            { label: "In Progress", count: inProgress, dot: "bg-primary-brand" },
+            { label: "Up Next", count: recommended, dot: "bg-yellow-400" },
+            { label: "Not Started", count: notStarted, dot: "bg-outline-variant" },
+          ].map(({ label, count, dot }) => (
+            <div key={label} className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${dot}`} />
+                <span className="text-on-surface-variant text-xs">{label}</span>
+              </div>
+              <span className="text-on-surface text-xs font-semibold font-mono">
+                {count}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Streak + Target */}
+      <div className="rounded-xl bg-surface-container-low subtle-border p-4 space-y-0 divide-y divide-outline-variant/10">
+        <div className="flex items-center justify-between py-2.5">
+          <div className="flex items-center gap-2 text-on-surface-variant text-sm">
+            <span className="material-symbols-outlined text-[16px] text-orange-400">
+              local_fire_department
+            </span>
+            Streak
+          </div>
+          <span className="text-on-surface text-sm font-semibold font-mono">
+            {streak}d
           </span>
         </div>
-
-        <div className="w-full h-2 rounded-full bg-surface-container-high">
-          <div
-            className="h-2 rounded-full bg-primary-brand transition-all relative"
-            style={{ width: `${roadmap.globalMastery}%` }}
-          >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-brand shadow-[0_0_8px_rgba(188,194,255,0.6)]" />
-          </div>
-        </div>
-
-        <p className="text-outline text-xs">
-          {roadmap.totalSolved} / {roadmap.totalProblems} problems solved
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="rounded-lg bg-surface-container-low p-5">
-        <div className="divide-y divide-outline-variant/10">
-          <div className="flex items-center justify-between py-3">
-            <span className="text-on-surface-variant text-sm">Daily Streak</span>
-            <span className="font-mono text-on-surface text-sm font-medium">
-              {streak} Days
+        <div className="flex items-center justify-between py-2.5">
+          <div className="flex items-center gap-2 text-on-surface-variant text-sm">
+            <span className="material-symbols-outlined text-[16px] text-outline">
+              apartment
             </span>
+            Target
           </div>
-          <div className="flex items-center justify-between py-3">
-            <span className="text-on-surface-variant text-sm">Target</span>
-            <span className="font-mono text-on-surface text-sm font-medium">
-              {roadmap.companyName}
-            </span>
-          </div>
+          <span className="text-on-surface text-sm font-semibold">
+            {roadmap.companyName}
+          </span>
         </div>
       </div>
 
-      {/* Topic Status Summary */}
-      <div className="rounded-lg bg-surface-container-low p-5 space-y-3">
-        <h4 className="text-on-surface-variant text-sm font-medium">Progress Breakdown</h4>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-400" />
-              <span className="text-on-surface-variant">Completed</span>
-            </div>
-            <span className="text-on-surface font-medium">{completed}</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-primary-brand" />
-              <span className="text-on-surface-variant">In Progress</span>
-            </div>
-            <span className="text-on-surface font-medium">{inProgress}</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-yellow-400" />
-              <span className="text-on-surface-variant">Recommended</span>
-            </div>
-            <span className="text-on-surface font-medium">{recommended}</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-outline-variant" />
-              <span className="text-on-surface-variant">Not Started</span>
-            </div>
-            <span className="text-on-surface font-medium">
-              {allTopics.length - completed - inProgress - recommended}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Focus Area */}
+      {/* Focus area */}
       {roadmap.focusArea && (
-        <div className="rounded-lg bg-surface-container-low p-5 space-y-3">
-          <h4 className="text-on-surface-variant text-sm font-medium">
-            Suggested Focus
-          </h4>
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-yellow-400 text-[24px]">
+        <div className="rounded-xl bg-yellow-400/5 border border-yellow-400/15 p-4">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined text-yellow-400 text-[20px] mt-0.5">
               target
             </span>
             <div>
-              <p className="text-on-surface text-sm font-medium">{roadmap.focusArea}</p>
+              <p className="text-on-surface-variant text-xs uppercase tracking-wider font-medium mb-1">
+                Focus Now
+              </p>
+              <p className="text-on-surface text-sm font-semibold">
+                {roadmap.focusArea}
+              </p>
               <p className="text-outline text-xs mt-0.5">
                 Highest priority for {roadmap.companyName}
               </p>
@@ -117,22 +146,22 @@ export function MasterySidebar({ roadmap, streak }: MasterySidebarProps) {
         </div>
       )}
 
-      {/* Quick Links */}
-      <div className="rounded-lg bg-surface-container-low p-5 space-y-2">
-        <Link
-          href="/practice"
-          className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
-        >
-          <span className="material-symbols-outlined text-[18px]">terminal</span>
-          All Problems
-        </Link>
-        <Link
-          href="/profile"
-          className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
-        >
-          <span className="material-symbols-outlined text-[18px]">person</span>
-          View Profile
-        </Link>
+      {/* Quick links */}
+      <div className="rounded-xl bg-surface-container-low subtle-border p-4 space-y-1">
+        {[
+          { href: "/practice", icon: "terminal", label: "All Problems" },
+          { href: "/profile", icon: "person", label: "View Profile" },
+          { href: "/settings", icon: "tune", label: "Change Target" },
+        ].map(({ href, icon, label }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors py-1"
+          >
+            <span className="material-symbols-outlined text-[16px]">{icon}</span>
+            {label}
+          </Link>
+        ))}
       </div>
     </div>
   );

@@ -6,43 +6,95 @@ import { TopicCard } from "@/components/roadmap/topic-card";
 import { MasterySidebar } from "@/components/roadmap/mastery-sidebar";
 import { getUserProgress } from "@/lib/db/progress";
 import { getProblems } from "@/lib/db/problems";
-import { generateRoadmap, type RoadmapData, type RoadmapTopic } from "@/lib/roadmap/engine";
+import {
+  generateRoadmap,
+  type RoadmapData,
+  type RoadmapTopic,
+} from "@/lib/roadmap/engine";
 
-type Tab = "all" | "dsa" | "aptitude";
+type Filter = "all" | "dsa" | "aptitude";
 
-// ── Skeleton card ─────────────────────────────────────────────────────────────
-function SkeletonCard() {
+// ── Skeleton row ─────────────────────────────────────────────────────────────
+function SkeletonRow() {
   return (
-    <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low overflow-hidden animate-pulse">
-      <div className="px-4 pt-4 pb-3 bg-surface-container">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-surface-container-high" />
-          <div className="flex-1 space-y-2 mt-1">
-            <div className="h-3 bg-surface-container-high rounded w-3/4" />
-            <div className="h-2.5 bg-surface-container-high rounded w-full" />
-            <div className="h-2.5 bg-surface-container-high rounded w-2/3" />
-          </div>
-        </div>
+    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-container-low subtle-border animate-pulse">
+      <div className="w-8 h-8 rounded-lg bg-surface-container-high shrink-0" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 bg-surface-container-high rounded w-1/3" />
+        <div className="h-2.5 bg-surface-container-high rounded w-2/3" />
       </div>
-      <div className="px-4 py-3 space-y-2">
-        <div className="flex justify-between">
-          <div className="h-2.5 bg-surface-container-high rounded w-1/3" />
-          <div className="h-2.5 bg-surface-container-high rounded w-1/4" />
-        </div>
-        <div className="h-1.5 bg-surface-container-high rounded-full" />
+      <div className="hidden sm:block w-24 space-y-1.5">
+        <div className="h-2.5 bg-surface-container-high rounded" />
+        <div className="h-1 bg-surface-container-high rounded-full" />
       </div>
-      <div className="px-4 pb-4">
-        <div className="h-8 bg-surface-container-high rounded-lg" />
-      </div>
+      <div className="w-16 h-7 bg-surface-container-high rounded-lg shrink-0" />
     </div>
   );
 }
 
+// ── Status section ────────────────────────────────────────────────────────────
+interface StatusSectionProps {
+  title: string;
+  icon: string;
+  iconColor: string;
+  topics: RoadmapTopic[];
+  defaultOpen?: boolean;
+  muted?: boolean;
+}
+
+function StatusSection({
+  title,
+  icon,
+  iconColor,
+  topics,
+  defaultOpen = true,
+  muted = false,
+}: StatusSectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  if (topics.length === 0) return null;
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2.5 py-2 text-left group"
+      >
+        <span className={`material-symbols-outlined text-[18px] ${iconColor}`}>
+          {icon}
+        </span>
+        <span className={`text-sm font-semibold ${muted ? "text-on-surface-variant" : "text-on-surface"}`}>
+          {title}
+        </span>
+        <span className="text-xs text-outline font-mono bg-surface-container-high px-1.5 py-0.5 rounded-full">
+          {topics.length}
+        </span>
+        <span
+          className={`material-symbols-outlined text-[16px] text-outline ml-auto transition-transform duration-200 ${
+            open ? "rotate-0" : "-rotate-90"
+          }`}
+        >
+          expand_more
+        </span>
+      </button>
+
+      {open && (
+        <div className="space-y-2 mt-1">
+          {topics.map((topic) => (
+            <TopicCard key={topic.slug} topic={topic} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function RoadmapPage() {
   const { user, profile } = useAuth();
   const [roadmap, setRoadmap] = useState<RoadmapData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("all");
+  const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
     if (!user) return;
@@ -54,7 +106,8 @@ export default function RoadmapPage() {
           getProblems({ pageSize: 200 }),
         ]);
 
-        const progressMap: Record<string, { solved: number; attempted: number }> = {};
+        const progressMap: Record<string, { solved: number; attempted: number }> =
+          {};
         for (const p of topicProgress) {
           const data = p as Record<string, unknown>;
           const topic = data.topic as string;
@@ -68,7 +121,8 @@ export default function RoadmapPage() {
 
         const problemCountMap: Record<string, number> = {};
         for (const problem of allProblemsResult.problems) {
-          problemCountMap[problem.topic] = (problemCountMap[problem.topic] || 0) + 1;
+          problemCountMap[problem.topic] =
+            (problemCountMap[problem.topic] || 0) + 1;
         }
 
         const targetCompany = profile?.targetCompany || "General";
@@ -84,119 +138,155 @@ export default function RoadmapPage() {
     fetchRoadmap();
   }, [user, profile]);
 
-  // Derive topic lists for the active tab
+  // Derive topic list based on active filter
   const allTopics: RoadmapTopic[] = roadmap
     ? roadmap.sections.flatMap((s) => s.topics)
     : [];
 
-  const dsaTopics = roadmap?.sections.find((s) =>
-    s.title.includes("Data Structures")
-  )?.topics ?? [];
-  const aptitudeTopics = roadmap?.sections.find((s) =>
-    s.title.includes("Aptitude")
-  )?.topics ?? [];
+  const dsaTopics =
+    roadmap?.sections.find((s) => s.title.includes("Data Structures"))?.topics ??
+    [];
+  const aptitudeTopics =
+    roadmap?.sections.find((s) => s.title.includes("Aptitude"))?.topics ?? [];
 
-  const visibleTopics =
-    activeTab === "dsa"
+  const sourceTopics =
+    filter === "dsa"
       ? dsaTopics
-      : activeTab === "aptitude"
+      : filter === "aptitude"
       ? aptitudeTopics
       : allTopics;
 
-  // Status counts for summary bar
-  const completed = allTopics.filter((t) => t.status === "completed").length;
-  const inProgress = allTopics.filter((t) => t.status === "in-progress").length;
-  const recommended = allTopics.filter((t) => t.status === "recommended").length;
-  const notStarted = allTopics.filter((t) => t.status === "not-started").length;
+  // Group by status
+  const inProgress = sourceTopics.filter((t) => t.status === "in-progress");
+  const recommended = sourceTopics.filter((t) => t.status === "recommended");
+  const notStarted = sourceTopics.filter((t) => t.status === "not-started");
+  const completed = sourceTopics.filter((t) => t.status === "completed");
+
+  const isEmpty =
+    !loading &&
+    inProgress.length === 0 &&
+    recommended.length === 0 &&
+    notStarted.length === 0 &&
+    completed.length === 0;
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <main className="max-w-7xl mx-auto px-6 py-8">
       {/* Header */}
-      <div>
+      <div className="mb-8">
         <h1 className="font-serif text-3xl text-on-surface font-medium tracking-tight">
           Your Learning Roadmap
         </h1>
         <p className="text-on-surface-variant text-sm mt-2">
-          {roadmap
-            ? <>Personalised for <span className="text-primary-brand font-medium">{roadmap.companyName}</span> — work through topics in priority order.</>
-            : "Loading your personalised roadmap..."}
+          {roadmap ? (
+            <>
+              Personalised for{" "}
+              <span className="text-primary-brand font-medium">
+                {roadmap.companyName}
+              </span>{" "}
+              — topics ordered by priority.
+            </>
+          ) : (
+            "Loading your personalised roadmap..."
+          )}
         </p>
       </div>
 
-      {/* Summary stats row */}
-      {!loading && roadmap && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Completed", value: completed, color: "text-green-400", dot: "bg-green-400" },
-            { label: "In Progress", value: inProgress, color: "text-primary-brand", dot: "bg-primary-brand" },
-            { label: "Recommended", value: recommended, color: "text-yellow-400", dot: "bg-yellow-400" },
-            { label: "Not Started", value: notStarted, color: "text-outline", dot: "bg-outline-variant" },
-          ].map((stat) => (
-            <div key={stat.label} className="flex items-center gap-3 rounded-xl bg-surface-container-low subtle-border px-4 py-3">
-              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${stat.dot}`} />
-              <div>
-                <p className={`text-lg font-semibold font-mono leading-none ${stat.color}`}>{stat.value}</p>
-                <p className="text-on-surface-variant text-xs mt-0.5">{stat.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
-        {/* Left — Quest grid */}
-        <div className="space-y-5">
-          {/* Tab selector */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_288px] gap-8">
+        {/* ── Left: topic list ───────────────────────────────────────────── */}
+        <div className="space-y-6 min-w-0">
+          {/* Filter toggle */}
           <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-container-low subtle-border w-fit">
-            {(["all", "dsa", "aptitude"] as Tab[]).map((tab) => (
+            {(["all", "dsa", "aptitude"] as Filter[]).map((f) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all capitalize ${
-                  activeTab === tab
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  filter === f
                     ? "bg-primary-container/20 text-primary-brand shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                {tab === "all" ? "All Topics" : tab === "dsa" ? "DSA" : "Aptitude"}
+                {f === "all" ? "All Topics" : f === "dsa" ? "DSA" : "Aptitude"}
                 {!loading && roadmap && (
                   <span className="ml-1.5 text-xs text-outline">
-                    ({tab === "all" ? allTopics.length : tab === "dsa" ? dsaTopics.length : aptitudeTopics.length})
+                    (
+                    {f === "all"
+                      ? allTopics.length
+                      : f === "dsa"
+                      ? dsaTopics.length
+                      : aptitudeTopics.length}
+                    )
                   </span>
                 )}
               </button>
             ))}
           </div>
 
-          {/* Grid */}
+          {/* Sections */}
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {Array.from({ length: 9 }).map((_, i) => <SkeletonCard key={i} />)}
+            <div className="space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <SkeletonRow key={i} />
+              ))}
             </div>
-          ) : visibleTopics.length === 0 ? (
+          ) : isEmpty ? (
             <div className="rounded-xl bg-surface-container-low subtle-border p-12 text-center">
-              <span className="material-symbols-outlined text-outline text-5xl">search_off</span>
-              <p className="text-on-surface-variant text-sm mt-3">No topics found.</p>
+              <span className="material-symbols-outlined text-outline text-5xl">
+                search_off
+              </span>
+              <p className="text-on-surface-variant text-sm mt-3">
+                No topics found.
+              </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {visibleTopics.map((topic) => (
-                <TopicCard key={topic.slug} topic={topic} />
-              ))}
+            <div className="space-y-6">
+              <StatusSection
+                title="In Progress"
+                icon="pending"
+                iconColor="text-primary-brand"
+                topics={inProgress}
+              />
+              <StatusSection
+                title="Up Next"
+                icon="rocket_launch"
+                iconColor="text-yellow-400"
+                topics={recommended}
+              />
+              <StatusSection
+                title="Not Started"
+                icon="radio_button_unchecked"
+                iconColor="text-outline"
+                topics={notStarted}
+              />
+              <StatusSection
+                title="Completed"
+                icon="check_circle"
+                iconColor="text-green-400"
+                topics={completed}
+                defaultOpen={false}
+                muted
+              />
             </div>
           )}
         </div>
 
-        {/* Right — Mastery sidebar */}
+        {/* ── Right: sidebar ─────────────────────────────────────────────── */}
         <div className="lg:sticky lg:top-20 lg:self-start">
           {loading ? (
             <div className="space-y-3 animate-pulse">
-              {[80, 60, 120, 90].map((h, i) => (
-                <div key={i} className={`h-${h} rounded-xl bg-surface-container-low`} style={{ height: h }} />
+              {[96, 140, 80, 96].map((h, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl bg-surface-container-low"
+                  style={{ height: h }}
+                />
               ))}
             </div>
           ) : roadmap ? (
-            <MasterySidebar roadmap={roadmap} streak={profile?.currentStreak || 0} />
+            <MasterySidebar
+              roadmap={roadmap}
+              streak={profile?.currentStreak || 0}
+            />
           ) : null}
         </div>
       </div>
