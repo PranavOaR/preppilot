@@ -1,6 +1,11 @@
 import { getUserProgress, getOverallStats } from "@/lib/db/progress";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 export async function GET(request: Request) {
+  const token = extractBearerToken(request);
+  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await verifyIdToken(token);
+  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
 

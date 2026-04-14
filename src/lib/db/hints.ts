@@ -92,10 +92,14 @@ export async function getUserUnlockedLevels(
   userId: string,
   problemId: string
 ): Promise<number[]> {
-  const levels: number[] = [];
-  for (let level = 1; level <= 4; level++) {
-    const unlocked = await getHintUsage(userId, problemId, level);
-    if (unlocked) levels.push(level);
-  }
-  return levels;
+  const q = query(
+    collection(db, "hintUsage"),
+    where("userId", "==", userId),
+    where("problemId", "==", problemId)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => d.data().level as number)
+    .filter((l) => l >= 1 && l <= 4)
+    .sort((a, b) => a - b);
 }

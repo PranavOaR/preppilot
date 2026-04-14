@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
+import { getAuth } from "firebase/auth";
 
 interface CodeReviewPanelProps {
   problemId: string;
@@ -30,10 +31,14 @@ export function CodeReviewPanel({ problemId, code, language, passed }: CodeRevie
     setError(null);
 
     try {
+      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
       const res = await fetch("/api/code-review", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ problemId, userId: user.uid, code, language, passed }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({ problemId, code, language, passed }),
       });
 
       const data = await res.json();

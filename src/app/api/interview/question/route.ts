@@ -67,7 +67,10 @@ export async function POST(req: NextRequest) {
       max_tokens: 300,
     });
 
-    const question = completion.choices[0]?.message?.content?.trim() || "";
+    const question = completion.choices[0]?.message?.content?.trim();
+    if (!question) {
+      return NextResponse.json({ error: "Failed to generate question." }, { status: 500 });
+    }
 
     return NextResponse.json({ question });
   } catch (err) {

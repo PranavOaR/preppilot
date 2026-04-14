@@ -35,8 +35,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       setToasts((prev) => [...prev, { id, message, type }]);
 
-      // Auto-dismiss after 5s
-      setTimeout(() => dismissToast(id), 5000);
+      // Auto-dismiss: errors after 8s, others after 5s
+      setTimeout(() => dismissToast(id), type === "error" ? 8000 : 5000);
     },
     [dismissToast]
   );

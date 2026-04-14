@@ -11,8 +11,8 @@ export async function GET() {
 
   results.env = {
     SARVAM_API_URL: SARVAM_URL,
-    SARVAM_API_KEY: SARVAM_KEY ? `set — starts with: ${SARVAM_KEY.slice(0, 10)}` : "NOT SET ❌",
-    GROQ_API_KEY: GROQ_KEY ? `set — starts with: ${GROQ_KEY.slice(0, 10)}` : "NOT SET ❌",
+    SARVAM_API_KEY: SARVAM_KEY ? "set ✓" : "NOT SET ❌",
+    GROQ_API_KEY: GROQ_KEY ? "set ✓" : "NOT SET ❌",
   };
 
   // Test Sarvam TTS

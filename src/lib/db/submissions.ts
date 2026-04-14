@@ -56,14 +56,13 @@ export async function getUserSubmissionForProblem(
 ) {
   const q = query(
     collection(db, SUBMISSIONS_COLLECTION),
-    where("userId", "==", userId)
+    where("userId", "==", userId),
+    where("problemId", "==", problemId),
+    where("status", "==", "accepted")
   );
   const snapshot = await getDocs(q);
-  const match = snapshot.docs.find((doc) => {
-    const data = doc.data();
-    return data.problemId === problemId && data.status === "accepted";
-  });
-  if (!match) return null;
+  if (snapshot.empty) return null;
+  const match = snapshot.docs[0];
   return { id: match.id, ...match.data() };
 }
 

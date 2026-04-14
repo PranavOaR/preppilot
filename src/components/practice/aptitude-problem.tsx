@@ -7,6 +7,7 @@ import type { Problem } from "@/lib/types";
 import { getProblems } from "@/lib/db/problems";
 import { recordSolve } from "@/lib/db/record-solve";
 import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/contexts/toast-context";
 import { HintPanel } from "@/components/practice/hint-panel";
 
 const optionLabels = ["A", "B", "C", "D"];
@@ -110,6 +111,7 @@ interface AptitudeProblemProps {
 
 export function AptitudeProblem({ problem }: AptitudeProblemProps) {
   const { user, refreshProfile } = useAuth();
+  const { showToast } = useToast();
   const [selected, setSelected] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [result, setResult] = useState<"correct" | "wrong" | null>(null);
@@ -162,6 +164,7 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
         refreshProfile();
       } catch (err) {
         console.error("Failed to record aptitude solve:", err);
+        showToast("Your answer was saved but XP could not be recorded. Try refreshing.", "error");
       }
     }
 

@@ -2,8 +2,13 @@ import { getUserProgress } from "@/lib/db/progress";
 import { getProblems } from "@/lib/db/problems";
 import { getUser } from "@/lib/db/users";
 import { generateRoadmap } from "@/lib/roadmap/engine";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 export async function GET(request: Request) {
+  const token = extractBearerToken(request);
+  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await verifyIdToken(token);
+  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
 

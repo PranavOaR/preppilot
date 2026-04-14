@@ -5,12 +5,20 @@ import { getProblemById } from "@/lib/db/problems";
 import { checkAndIncrementUsage } from "@/lib/plans/usage";
 import { db } from "@/lib/firebase/client";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 export async function POST(req: NextRequest) {
   try {
-    const { problemId, userId, code, language, passed } = await req.json();
+    const token = extractBearerToken(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await verifyIdToken(token);
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!problemId || !userId || !code || !language) {
+    const userId = auth.uid;
+
+    const { problemId, code, language, passed } = await req.json();
+
+    if (!problemId || !code || !language) {
       return NextResponse.json(
         { error: "Missing required fields." },
         { status: 400 }

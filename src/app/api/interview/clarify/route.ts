@@ -11,9 +11,9 @@ function getGroq(): Groq {
 
 export async function POST(req: NextRequest) {
   const token = extractBearerToken(req);
-  if (!token) return NextResponse.json({ response: "Please answer based on your best understanding." }, { status: 200 });
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const auth = await verifyIdToken(token);
-  if (!auth) return NextResponse.json({ response: "Please answer based on your best understanding." }, { status: 200 });
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const { originalQuestion, userQuery, type } = (await req.json()) as {

@@ -3,6 +3,11 @@ import { db } from "@/lib/firebase/client";
 import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 export async function GET(request: Request) {
+  const token = extractBearerToken(request);
+  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await verifyIdToken(token);
+  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
 
@@ -18,7 +23,22 @@ export async function GET(request: Request) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
 
-    return Response.json({ id: userSnap.id, ...userSnap.data() });
+    const data = userSnap.data();
+
+    // Only the owner gets the full profile; other callers get public fields only
+    if (userId !== auth.uid) {
+      return Response.json({
+        id: userSnap.id,
+        username: data.username,
+        displayName: data.displayName,
+        avatarUrl: data.avatarUrl,
+        university: data.university,
+        xp: data.xp,
+        currentStreak: data.currentStreak,
+      });
+    }
+
+    return Response.json({ id: userSnap.id, ...data });
   } catch (error) {
     console.error("Error fetching user profile:", error);
     return Response.json({ error: "Failed to fetch profile" }, { status: 500 });
