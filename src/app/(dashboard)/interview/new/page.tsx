@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { doc, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, setDoc, serverTimestamp, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/contexts/toast-context";
@@ -152,7 +152,7 @@ export default function NewInterviewPage() {
 
             await Promise.all([
               updateDoc(doc(db, "users", user.uid), {
-                purchasedInterviews: (purchasedCredits || 0) + 1,
+                purchasedInterviews: increment(1),
                 updatedAt: serverTimestamp(),
               }),
               setDoc(doc(db, "payments", response.razorpay_payment_id), {

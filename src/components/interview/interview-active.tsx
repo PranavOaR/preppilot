@@ -107,24 +107,33 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
   function buildQAs(lines: TranscriptLine[]): InterviewQA[] {
     const qas: InterviewQA[] = [];
     let qIndex = 0;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].role !== "assistant") continue;
+    let i = 0;
+    while (i < lines.length) {
+      // Find next assistant line
+      if (lines[i].role !== "assistant") { i++; continue; }
       const questionText = lines[i].text.trim();
-      if (!questionText) continue;
-      const answerLine = lines.slice(i + 1).find((l) => l.role === "user");
-      if (!answerLine) continue;
-      qas.push({
-        index: qIndex++,
-        questionText,
-        questionTopic: config.topics?.[0] ?? config.type,
-        userTranscript: answerLine.text.trim(),
-        score: 5,
-        evaluation: "",
-        isFollowUp: false,
-        parentIndex: null,
-        timeTakenSeconds: 0,
-        answeredAt: null,
-      });
+      if (!questionText) { i++; continue; }
+
+      // Advance past any consecutive assistant lines (partial merges)
+      i++;
+      while (i < lines.length && lines[i].role === "assistant") i++;
+
+      // Find the user's answer (may be the very next line)
+      if (i < lines.length && lines[i].role === "user") {
+        qas.push({
+          index: qIndex++,
+          questionText,
+          questionTopic: config.topics?.[0] ?? config.type,
+          userTranscript: lines[i].text.trim(),
+          score: 5,
+          evaluation: "",
+          isFollowUp: false,
+          parentIndex: null,
+          timeTakenSeconds: 0,
+          answeredAt: null,
+        });
+        i++;
+      }
     }
     return qas;
   }
@@ -167,7 +176,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
           weaknesses: fb.weaknesses ?? [],
           topicScores: fb.topicScores ?? {},
           suggestions: fb.suggestions ?? [],
-          generatedAt: null as any,
+          generatedAt: null as unknown as InterviewFeedback["generatedAt"],
         };
         await saveInterviewFeedback(feedbackDoc);
         await completeInterviewSession(sessionId, feedbackDoc.overallScore);
@@ -211,7 +220,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     vapi.on("speech-start", () => setIsSpeaking(true));
     vapi.on("speech-end", () => setIsSpeaking(false));
 
-    vapi.on("message", (msg: any) => {
+    vapi.on("message", (msg: { type: string; role?: string; transcript?: string }) => {
       if (msg.type !== "transcript") return;
       const role = msg.role as "assistant" | "user";
       const text: string = msg.transcript ?? "";
@@ -223,7 +232,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
       });
     });
 
-    vapi.on("error", (err: any) => {
+    vapi.on("error", (err: { message?: string; errorMessage?: string }) => {
       const msg: string = err?.message ?? err?.errorMessage ?? "";
       // "Meeting ended due to ejection" is normal call termination, not a real error
       if (!msg || msg.toLowerCase().includes("ejection") || msg.toLowerCase().includes("meeting has ended")) {
@@ -244,8 +253,8 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
           messages: [{ role: "system", content: buildSystemPrompt(config) }],
           maxTokens: 250,
         },
-      } as any)
-      .catch((err: any) => {
+      } as Record<string, unknown>)
+      .catch((err: Error) => {
         console.error("Failed to start Vapi call:", err);
         setErrorMsg("Could not connect to the interviewer. Please check your microphone and try again.");
         setCallStatus("error");

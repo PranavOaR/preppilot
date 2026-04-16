@@ -11,6 +11,7 @@ import {
   deleteDoc,
   serverTimestamp,
   onSnapshot,
+  increment,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
@@ -125,13 +126,10 @@ export async function submitContestAnswer(
     throw new Error("User has not joined this contest");
   }
 
-  const data = participantDoc.data();
-  const currentScore = data.score || 0;
-  const currentTime = data.totalTime || 0;
-
+  // Use atomic increment to prevent concurrent double-credit
   await updateDoc(participantRef, {
-    score: isCorrect ? currentScore + 1 : currentScore,
-    totalTime: currentTime + timeTaken,
+    score: isCorrect ? increment(1) : increment(0),
+    totalTime: increment(timeTaken),
   });
 }
 
@@ -228,7 +226,7 @@ export async function getUserContestParticipations(userId: string): Promise<{
   score: number;
   rank: number;
   totalParticipants: number;
-  joinedAt: any;
+  joinedAt: { seconds: number } | null | undefined;
 }[]> {
   // Query contestParticipants by userId
   const q = query(
@@ -238,39 +236,54 @@ export async function getUserContestParticipations(userId: string): Promise<{
   const snap = await getDocs(q);
   if (snap.empty) return [];
 
-  // For each participation, get the contest title and compute rank
-  const results = await Promise.all(
-    snap.docs.map(async (d) => {
-      const data = d.data() as ContestParticipant;
-      // Get contest title
-      let contestTitle = "Unknown Contest";
-      try {
-        const contestDoc = await getDoc(doc(db, CONTESTS_COLLECTION, data.contestId));
-        if (contestDoc.exists()) {
-          contestTitle = (contestDoc.data().title as string) || contestTitle;
-        }
-      } catch {}
+  // Collect unique contest IDs to batch-fetch
+  const participations = snap.docs.map((d) => d.data() as ContestParticipant);
+  const contestIds = [...new Set(participations.map((p) => p.contestId))];
 
-      // Get all participants to compute rank
-      let rank = 1;
-      let totalParticipants = 1;
-      try {
-        const allParticipants = await getContestLeaderboard(data.contestId);
-        totalParticipants = allParticipants.length;
-        const myIndex = allParticipants.findIndex(p => p.userId === userId);
-        rank = myIndex >= 0 ? myIndex + 1 : totalParticipants;
-      } catch {}
-
-      return {
-        contestId: data.contestId,
-        contestTitle,
-        score: data.score || 0,
-        rank,
-        totalParticipants,
-        joinedAt: data.joinedAt,
-      };
-    })
+  // Batch-fetch contest docs (parallel, but no N+1 leaderboard queries)
+  const contestDocs = await Promise.all(
+    contestIds.map((id) => getDoc(doc(db, CONTESTS_COLLECTION, id)))
   );
+  const contestTitles = new Map<string, string>();
+  for (const cd of contestDocs) {
+    if (cd.exists()) {
+      contestTitles.set(cd.id, (cd.data().title as string) || "Unknown Contest");
+    }
+  }
+
+  // Batch-fetch all participants for these contests in one query per contest
+  const participantsByContest = new Map<string, ContestParticipant[]>();
+  const participantSnaps = await Promise.all(
+    contestIds.map((cid) =>
+      getDocs(query(collection(db, PARTICIPANTS_COLLECTION), where("contestId", "==", cid)))
+    )
+  );
+  for (let i = 0; i < contestIds.length; i++) {
+    const participants = participantSnaps[i].docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    })) as ContestParticipant[];
+    // Sort by score desc, then totalTime asc
+    participants.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.totalTime - b.totalTime;
+    });
+    participantsByContest.set(contestIds[i], participants);
+  }
+
+  const results = participations.map((data) => {
+    const allParticipants = participantsByContest.get(data.contestId) || [];
+    const myIndex = allParticipants.findIndex((p) => p.userId === userId);
+
+    return {
+      contestId: data.contestId,
+      contestTitle: contestTitles.get(data.contestId) || "Unknown Contest",
+      score: data.score || 0,
+      rank: myIndex >= 0 ? myIndex + 1 : allParticipants.length,
+      totalParticipants: allParticipants.length,
+      joinedAt: data.joinedAt,
+    };
+  });
 
   // Sort by joinedAt descending (most recent first)
   return results.sort((a, b) => {

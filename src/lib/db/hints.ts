@@ -72,20 +72,14 @@ export async function getUserHintsToday(userId: string): Promise<number> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Filter by userId and usedAt >= today at the Firestore level
   const q = query(
     collection(db, "hintUsage"),
-    where("userId", "==", userId)
+    where("userId", "==", userId),
+    where("usedAt", ">=", today)
   );
   const snap = await getDocs(q);
-
-  let count = 0;
-  for (const d of snap.docs) {
-    const usedAt = d.data().usedAt;
-    if (usedAt && usedAt.toDate() >= today) {
-      count++;
-    }
-  }
-  return count;
+  return snap.size;
 }
 
 export async function getUserUnlockedLevels(

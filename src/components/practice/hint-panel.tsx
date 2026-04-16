@@ -59,11 +59,15 @@ export function HintPanel({ problem }: HintPanelProps) {
         return;
       }
 
-      // 2. Client-side XP check
+      // 2. Client-side XP check — if insufficient, skip (quota already consumed)
       const userXP = profile?.xp ?? 0;
       if (userXP < xpCost) {
-        setError(`Not enough XP. Need ${xpCost} XP, you have ${userXP}.`);
         // Roll back the quota increment since we're not generating
+        try {
+          const { rollbackUsage } = await import("@/lib/plans/usage");
+          await rollbackUsage(user.uid, "aiHint");
+        } catch { /* best-effort rollback */ }
+        setError(`Not enough XP. Need ${xpCost} XP, you have ${userXP}.`);
         return;
       }
 

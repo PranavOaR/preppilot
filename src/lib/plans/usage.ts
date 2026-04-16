@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import {
   PLAN_LIMITS,
@@ -40,6 +40,7 @@ function freshUsage(stored: MonthlyUsage | undefined): MonthlyUsage {
 
 /**
  * Check whether an action is within plan limits, then increment the counter.
+ * Uses a Firestore transaction to prevent race conditions (double-spend).
  * For interviews: if the plan quota is exhausted, falls back to purchasedInterviews credit.
  * Returns { allowed: false } without incrementing if both quota and credits are exhausted.
  */
@@ -48,66 +49,95 @@ export async function checkAndIncrementUsage(
   action: UsageAction
 ): Promise<UsageCheckResult> {
   const userRef = doc(db, "users", userId);
-  const snap = await getDoc(userRef);
 
-  if (!snap.exists()) {
-    return { allowed: false, remaining: 0, limit: 0, plan: "free" };
-  }
+  return runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(userRef);
 
-  const data = snap.data();
-  const plan = effectivePlan(data.plan, data.planExpiresAt);
-  const limits = PLAN_LIMITS[plan];
-  const usage = freshUsage(data.usageThisMonth as MonthlyUsage | undefined);
-
-  let current: number;
-  let limit: number;
-  let field: keyof MonthlyUsage;
-
-  if (action === "interview") {
-    if (limits.interviewsMonthly) {
-      current = usage.interviewsThisMonth;
-      limit = limits.interviews;
-      field = "interviewsThisMonth";
-    } else {
-      current = usage.interviewsLifetime;
-      limit = limits.interviews;
-      field = "interviewsLifetime";
+    if (!snap.exists()) {
+      return { allowed: false, remaining: 0, limit: 0, plan: "free" as PlanTier };
     }
 
-    if (current >= limit) {
-      // Fall back to purchased interview credits
-      const purchased = (data.purchasedInterviews as number) || 0;
-      if (purchased <= 0) {
+    const data = snap.data();
+    const plan = effectivePlan(data.plan, data.planExpiresAt);
+    const limits = PLAN_LIMITS[plan];
+    const usage = freshUsage(data.usageThisMonth as MonthlyUsage | undefined);
+
+    let current: number;
+    let limit: number;
+    let field: keyof MonthlyUsage;
+
+    if (action === "interview") {
+      if (limits.interviewsMonthly) {
+        current = usage.interviewsThisMonth;
+        limit = limits.interviews;
+        field = "interviewsThisMonth";
+      } else {
+        current = usage.interviewsLifetime;
+        limit = limits.interviews;
+        field = "interviewsLifetime";
+      }
+
+      if (current >= limit) {
+        // Fall back to purchased interview credits
+        const purchased = (data.purchasedInterviews as number) || 0;
+        if (purchased <= 0) {
+          return { allowed: false, remaining: 0, limit, plan };
+        }
+        // Consume one purchased credit
+        const updated: MonthlyUsage = { ...usage, [field]: current + 1 };
+        transaction.update(userRef, {
+          usageThisMonth: updated,
+          purchasedInterviews: purchased - 1,
+        });
+        return { allowed: true, remaining: purchased - 1, limit, plan };
+      }
+    } else {
+      const actionMap: Record<Exclude<UsageAction, "interview">, { field: keyof MonthlyUsage; limit: number }> = {
+        dsaRun:     { field: "dsaRuns",    limit: limits.dsaRuns },
+        dsaSubmit:  { field: "dsaSubmits", limit: limits.dsaSubmits },
+        aiHint:     { field: "aiHints",    limit: limits.aiHints },
+        codeReview: { field: "codeReviews", limit: limits.codeReviews },
+      };
+      ({ field, limit } = actionMap[action as Exclude<UsageAction, "interview">]);
+      current = usage[field] as number;
+
+      if (current >= limit) {
         return { allowed: false, remaining: 0, limit, plan };
       }
-      // Consume one purchased credit
-      const updated: MonthlyUsage = { ...usage, [field]: current + 1 };
-      await updateDoc(userRef, {
-        usageThisMonth: updated,
-        purchasedInterviews: purchased - 1,
-      });
-      return { allowed: true, remaining: purchased - 1, limit, plan };
     }
-  } else {
-    const actionMap: Record<Exclude<UsageAction, "interview">, { field: keyof MonthlyUsage; limit: number }> = {
-      dsaRun:     { field: "dsaRuns",    limit: limits.dsaRuns },
-      dsaSubmit:  { field: "dsaSubmits", limit: limits.dsaSubmits },
-      aiHint:     { field: "aiHints",    limit: limits.aiHints },
-      codeReview: { field: "codeReviews", limit: limits.codeReviews },
+
+    // Increment within the transaction
+    const updated: MonthlyUsage = { ...usage, [field]: current + 1 };
+    transaction.update(userRef, { usageThisMonth: updated });
+
+    return { allowed: true, remaining: limit - current - 1, limit, plan };
+  });
+}
+
+/** Roll back a single usage increment (best-effort, e.g. when a downstream check fails). */
+export async function rollbackUsage(userId: string, action: UsageAction): Promise<void> {
+  const userRef = doc(db, "users", userId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(userRef);
+    if (!snap.exists()) return;
+
+    const data = snap.data();
+    const usage = freshUsage(data.usageThisMonth as MonthlyUsage | undefined);
+
+    const fieldMap: Record<UsageAction, keyof MonthlyUsage> = {
+      dsaRun: "dsaRuns",
+      dsaSubmit: "dsaSubmits",
+      aiHint: "aiHints",
+      codeReview: "codeReviews",
+      interview: "interviewsThisMonth",
     };
-    ({ field, limit } = actionMap[action as Exclude<UsageAction, "interview">]);
-    current = usage[field] as number;
+    const field = fieldMap[action];
+    const current = (usage[field] as number) || 0;
+    if (current <= 0) return;
 
-    if (current >= limit) {
-      return { allowed: false, remaining: 0, limit, plan };
-    }
-  }
-
-  // Increment
-  const updated: MonthlyUsage = { ...usage, [field]: current + 1 };
-  await updateDoc(userRef, { usageThisMonth: updated });
-
-  return { allowed: true, remaining: limit - current - 1, limit, plan };
+    const updated: MonthlyUsage = { ...usage, [field]: current - 1 };
+    transaction.update(userRef, { usageThisMonth: updated });
+  });
 }
 
 /** Read current usage without incrementing (for display purposes). */

@@ -6,7 +6,6 @@ import {
   query,
   where,
   getDocs,
-  orderBy,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 
@@ -59,14 +58,15 @@ export async function getActivityLog(userId: string, days = 365) {
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString().split("T")[0];
 
+  // Filter by userId and date >= startDateStr at the Firestore level
   const q = query(
     collection(db, ACTIVITY_COLLECTION),
-    where("userId", "==", userId)
+    where("userId", "==", userId),
+    where("date", ">=", startDateStr)
   );
   const snapshot = await getDocs(q);
 
   return snapshot.docs
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
-    .filter((entry: any) => entry.date >= startDateStr)
-    .sort((a: any, b: any) => a.date.localeCompare(b.date));
+    .map((d) => ({ id: d.id, ...d.data() }) as { id: string; date: string; problemsSolved: number; xpEarned: number })
+    .sort((a, b) => a.date.localeCompare(b.date));
 }

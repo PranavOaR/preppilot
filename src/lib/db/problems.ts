@@ -92,12 +92,13 @@ export async function getProblemById(id: string): Promise<Problem | null> {
 }
 
 export async function getTopics(): Promise<string[]> {
-  const snapshot = await getDocs(collection(db, "problems"));
+  // Reuse getAllProblems (which is also used by the practice page)
+  // to avoid a redundant full collection read
+  const problems = await getAllProblems();
   const topics = new Set<string>();
-  snapshot.docs.forEach((d) => {
-    const data = d.data();
-    if (data.topic) topics.add(data.topic);
-  });
+  for (const p of problems) {
+    if (p.topic) topics.add(p.topic);
+  }
   return Array.from(topics).sort();
 }
 

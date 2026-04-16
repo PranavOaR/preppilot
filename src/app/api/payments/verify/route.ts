@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 import type { PlanTier } from "@/lib/types/plans";
 
 export async function POST(req: NextRequest) {
   try {
+    // Authenticate the caller
+    const token = extractBearerToken(req);
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+    const authUser = await verifyIdToken(token);
+    if (!authUser) {
+      return NextResponse.json({ error: "Invalid token." }, { status: 401 });
+    }
+
     const { orderId, paymentId, signature, plan, type } = (await req.json()) as {
       orderId: string;
       paymentId: string;
@@ -32,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // Interview add-on purchase
     if (type === "interview_addon") {
-      return NextResponse.json({ success: true, type: "interview_addon" });
+      return NextResponse.json({ success: true, type: "interview_addon", userId: authUser.uid });
     }
 
     // Plan upgrade purchase
@@ -40,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing plan." }, { status: 400 });
     }
     const planExpiresAt = Date.now() + 365 * 24 * 60 * 60 * 1000;
-    return NextResponse.json({ success: true, plan, planExpiresAt });
+    return NextResponse.json({ success: true, plan, planExpiresAt, userId: authUser.uid });
   } catch (err) {
     console.error("Payment verify error:", err);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });

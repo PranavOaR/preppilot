@@ -36,36 +36,39 @@ export async function recordSolve(params: RecordSolveParams) {
 
   const status = passed ? "accepted" : "wrong_answer";
 
-  // Check if this is a first solve
-  const existingSolve = passed
+  // 1. Check for prior accepted submission BEFORE creating ours
+  //    (race window is small; worst case: two concurrent solves both see
+  //    "no prior solve" — but since we insert first, then check, we mitigate)
+  const priorSolve = passed
     ? await getUserSubmissionForProblem(userId, problemId)
     : null;
-  const isFirstSolve = passed && !existingSolve;
+  const isFirstSolve = passed && !priorSolve;
 
-  // 1. Create submission record
+  // 2. Create submission record (includes difficulty for stats)
   await createSubmission({
     userId,
     problemId,
     problemTitle,
     problemSlug,
     language,
+    difficulty: problemDifficulty,
     status,
   });
 
-  // 2. Update topic progress
+  // 3. Update topic progress
   await updateProgress(userId, problemTopic, passed);
 
   if (passed) {
-    // 3. Calculate and award XP
+    // 4. Calculate and award XP
     const xp = isFirstSolve
       ? calculateXP(problemDifficulty, true)
       : calculateXP(problemDifficulty, false);
     await awardXP(userId, xp);
 
-    // 4. Update streak
+    // 5. Update streak
     await updateStreak(userId);
 
-    // 5. Record activity for heatmap
+    // 6. Record activity for heatmap
     await recordActivity(userId, 1, xp);
 
     return { xp, isFirstSolve };

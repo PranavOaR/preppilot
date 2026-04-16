@@ -14,6 +14,7 @@ import {
 import { useContestRealtime } from "@/hooks/use-contest-realtime";
 import { useContestStatus, computeContestStatus } from "@/hooks/use-contest-status";
 import { ContestTimer } from "@/components/practice/contest-timer";
+import { getAuth } from "firebase/auth";
 import type { Problem } from "@/lib/types";
 
 const Editor = dynamic(() => import("@monaco-editor/react").then((m) => m.default), {
@@ -164,9 +165,13 @@ export default function ContestTakePage() {
     setRunResults(null);
     setRunSummary(null);
     try {
+      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
       const res = await fetch("/api/submissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
         body: JSON.stringify({
           code,
           language: selectedLang,
@@ -211,9 +216,13 @@ export default function ContestTakePage() {
         // burning the user's monthly submit quota for contest practice.
         answer = code;
         try {
+          const idToken2 = await getAuth().currentUser?.getIdToken().catch(() => null);
           const res = await fetch("/api/submissions", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(idToken2 ? { Authorization: `Bearer ${idToken2}` } : {}),
+            },
             body: JSON.stringify({
               code,
               language: selectedLang,

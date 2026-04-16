@@ -15,8 +15,10 @@ export function proxy(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(route + "/")
   );
 
-  // Read the auth token cookie set by the client
-  const authToken = request.cookies.get("__session")?.value;
+  // Read the auth token cookie set by the client.
+  // Check for a non-empty value — an empty or whitespace-only cookie is treated as absent.
+  const rawCookie = request.cookies.get("__session")?.value;
+  const authToken = rawCookie?.trim() || null;
 
   // Redirect unauthenticated users away from protected routes
   if (isProtected && !authToken) {

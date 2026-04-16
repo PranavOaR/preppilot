@@ -110,13 +110,17 @@ export default function MockTestTakePage() {
         : Date.now();
       setEndTime(new Date(startMs + testData.durationMinutes * 60 * 1000));
 
-      // Load all problems flat
+      // Load all problems in parallel
       const flat: FlatProblem[] = [];
-      for (const section of testData.sections) {
-        for (const problemId of section.problemIds) {
-          const p = await getProblemById(problemId);
-          if (p) flat.push({ problem: p, sectionLabel: section.label, sectionType: section.type });
-        }
+      const allEntries = testData.sections.flatMap((section) =>
+        section.problemIds.map((problemId) => ({ problemId, section }))
+      );
+      const problems = await Promise.all(
+        allEntries.map((e) => getProblemById(e.problemId))
+      );
+      for (let i = 0; i < allEntries.length; i++) {
+        const p = problems[i];
+        if (p) flat.push({ problem: p, sectionLabel: allEntries[i].section.label, sectionType: allEntries[i].section.type });
       }
       setFlatProblems(flat);
     } finally {
@@ -128,15 +132,6 @@ export default function MockTestTakePage() {
     loadData();
   }, [loadData]);
 
-  // Reset per-problem editor state when switching
-  useEffect(() => {
-    if (currentProblem?.type === "dsa") {
-      // Only set starter code if no saved answer
-      if (!answers[currentProblem.id]) {
-        // Don't override, editor will show empty
-      }
-    }
-  }, [currentIndex, currentProblem, answers]);
 
   async function handleSubmit(status: "submitted" | "timed_out" = "submitted") {
     if (!attempt || submitting || hasAutoSubmitted.current) return;

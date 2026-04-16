@@ -16,6 +16,7 @@ interface CreateSubmissionData {
   problemTitle: string;
   problemSlug: string;
   language: string;
+  difficulty: "easy" | "medium" | "hard";
   status:
     | "accepted"
     | "wrong_answer"
@@ -41,9 +42,9 @@ export async function getUserSubmissions(userId: string, maxResults = 20) {
   const docs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
   // Sort by submittedAt descending and limit client-side to avoid composite index
-  docs.sort((a: any, b: any) => {
-    const aTime = a.submittedAt?.seconds || 0;
-    const bTime = b.submittedAt?.seconds || 0;
+  docs.sort((a, b) => {
+    const aTime = (a as Record<string, { seconds?: number }>).submittedAt?.seconds || 0;
+    const bTime = (b as Record<string, { seconds?: number }>).submittedAt?.seconds || 0;
     return bTime - aTime;
   });
 

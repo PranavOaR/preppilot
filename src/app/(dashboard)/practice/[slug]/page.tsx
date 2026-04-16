@@ -16,6 +16,7 @@ import type { Problem } from "@/lib/types";
 import type { TestCaseResult } from "@/lib/judge/client";
 import { PLAN_LIMITS } from "@/lib/types/plans";
 import { checkAndIncrementUsage } from "@/lib/plans/usage";
+import { getAuth } from "firebase/auth";
 import Link from "next/link";
 
 // Dynamically import Monaco to avoid SSR issues
@@ -141,9 +142,13 @@ export default function ProblemPage() {
     setSummary(null);
 
     try {
+      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
       const res = await fetch("/api/submissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
         body: JSON.stringify({
           code,
           language: selectedLang,
@@ -241,9 +246,13 @@ export default function ProblemPage() {
     setSummary(null);
 
     try {
+      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
       const res = await fetch("/api/submissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
         body: JSON.stringify({
           code,
           language: selectedLang,

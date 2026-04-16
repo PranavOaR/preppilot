@@ -37,6 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Track whether a sign-in handler already loaded the profile to avoid
+  // double-loading when onAuthStateChanged fires immediately after.
+  const profileLoadedBySignIn = { current: false };
+
   async function loadProfile(firebaseUser: User) {
     const userProfile = await ensureUserProfile(firebaseUser);
     setProfile(userProfile);
@@ -46,7 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        await loadProfile(firebaseUser);
+        // Skip if the sign-in handler already loaded the profile
+        if (!profileLoadedBySignIn.current) {
+          await loadProfile(firebaseUser);
+        }
+        profileLoadedBySignIn.current = false;
       } else {
         setProfile(null);
       }
@@ -54,10 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return unsubscribe;
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSignIn(email: string, password: string) {
     const credential = await signIn(email, password);
+    profileLoadedBySignIn.current = true;
     await loadProfile(credential.user);
   }
 
@@ -68,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function handleSignInWithGoogle() {
     const credential = await signInWithGoogle();
+    profileLoadedBySignIn.current = true;
     await loadProfile(credential.user);
   }
 

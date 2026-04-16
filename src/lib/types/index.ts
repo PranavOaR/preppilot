@@ -67,13 +67,11 @@ export interface Submission {
   id: string;
   userId: string;
   problemId: string;
+  problemTitle: string;
+  problemSlug: string;
   language: string;
-  code: string;
+  difficulty: "easy" | "medium" | "hard";
   status: "accepted" | "wrong_answer" | "time_limit" | "runtime_error" | "compile_error";
-  testCasesPassed: number;
-  totalTestCases: number;
-  executionTimeMs: number;
-  memoryUsedKb: number;
   submittedAt: Timestamp;
 }
 

@@ -65,8 +65,15 @@ export function useProctor(
       }
     };
 
+    // Track whether user has ever entered fullscreen — don't fire violations
+    // for the initial mount state where the page is not fullscreen.
+    let wasFullscreen = !!document.fullscreenElement;
+
     const onFullscreenChange = () => {
-      if (!document.fullscreenElement) {
+      if (document.fullscreenElement) {
+        wasFullscreen = true;
+      } else if (wasFullscreen) {
+        // Only fire if user was in fullscreen and exited
         handleViolation("Exiting fullscreen is not allowed");
       }
     };

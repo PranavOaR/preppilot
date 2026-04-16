@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { runAgainstTestCases } from "@/lib/judge/client";
 import { LANGUAGE_IDS } from "@/lib/judge/languages";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 /**
  * Comprehensive C++ auto-wrapper for LeetCode-style Solution classes.
@@ -716,6 +717,16 @@ public static void main(String[]args){Scanner sc=new Scanner(System.in);Solution
 
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate the caller
+    const token = extractBearerToken(request);
+    if (!token) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const authUser = await verifyIdToken(token);
+    if (!authUser) {
+      return Response.json({ error: "Invalid token" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { code, language, testCases, mode } = body as {
       code: string;

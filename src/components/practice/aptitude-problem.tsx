@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { Problem } from "@/lib/types";
-import { getProblems } from "@/lib/db/problems";
 import { recordSolve } from "@/lib/db/record-solve";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/contexts/toast-context";
@@ -168,14 +167,26 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
       }
     }
 
-    // Prefetch a next problem
-    getProblems({ type: "aptitude", topic: problem.topic, pageSize: 50 }).then((res) => {
-      const others = res.problems.filter((p) => p.slug !== problem.slug);
-      if (others.length > 0) {
-        const random = others[Math.floor(Math.random() * others.length)];
-        setNextSlug(random.slug);
-      }
-    });
+    // Prefetch a next problem using a lightweight Firestore query
+    (async () => {
+      try {
+        const { query: fsQuery, collection: fsCollection, where: fsWhere, getDocs: fsGetDocs, limit: fsLimit } = await import("firebase/firestore");
+        const { db: fsDb } = await import("@/lib/firebase/client");
+        const q = fsQuery(
+          fsCollection(fsDb, "problems"),
+          fsWhere("type", "==", "aptitude"),
+          fsWhere("topic", "==", problem.topic),
+          fsLimit(10)
+        );
+        const snap = await fsGetDocs(q);
+        const others = snap.docs
+          .map((d) => d.data().slug as string)
+          .filter((slug) => slug && slug !== problem.slug);
+        if (others.length > 0) {
+          setNextSlug(others[Math.floor(Math.random() * others.length)]);
+        }
+      } catch { /* non-critical */ }
+    })();
   }
 
   function handleCancel() {

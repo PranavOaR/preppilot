@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/contexts/toast-context";
-import { updateUser } from "@/lib/db/users";
+import { updateUser, isUsernameTaken } from "@/lib/db/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +66,17 @@ export default function SettingsPage() {
     setSaved(false);
     setSaveError("");
     try {
+      // Check username uniqueness if changed
+      if (form.username && form.username !== profile?.username) {
+        const taken = await isUsernameTaken(form.username, user.uid);
+        if (taken) {
+          setSaveError("Username is already taken.");
+          showToast("Username is already taken.", "error");
+          setSaving(false);
+          return;
+        }
+      }
+
       await updateUser(user.uid, {
         username: form.username,
         displayName: form.displayName,
