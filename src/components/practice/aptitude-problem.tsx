@@ -8,6 +8,8 @@ import { recordSolve } from "@/lib/db/record-solve";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/contexts/toast-context";
 import { HintPanel } from "@/components/practice/hint-panel";
+import { BookmarkButton } from "@/components/practice/bookmark-button";
+import { SolveCelebration } from "@/components/practice/solve-celebration";
 
 const optionLabels = ["A", "B", "C", "D"];
 
@@ -109,13 +111,14 @@ interface AptitudeProblemProps {
 }
 
 export function AptitudeProblem({ problem }: AptitudeProblemProps) {
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { showToast } = useToast();
   const [selected, setSelected] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [result, setResult] = useState<"correct" | "wrong" | null>(null);
   const [nextSlug, setNextSlug] = useState<string | null>(null);
   const [earnedXP, setEarnedXP] = useState<number | null>(null);
+  const [celebration, setCelebration] = useState<{ xp: number } | null>(null);
 
   const options = problem.options || [];
   const correctAnswer = problem.correctAnswer || "";
@@ -159,6 +162,9 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
         });
         if (isCorrect) {
           setEarnedXP(solveResult.xp);
+          if (solveResult.isFirstSolve) {
+            setCelebration({ xp: solveResult.xp });
+          }
         }
         refreshProfile();
       } catch (err) {
@@ -195,6 +201,14 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {celebration && (
+        <SolveCelebration
+          problem={problem}
+          xpEarned={celebration.xp}
+          username={profile?.username}
+          onClose={() => setCelebration(null)}
+        />
+      )}
       {/* Question */}
       <div className="rounded-lg bg-surface-container-low p-6 subtle-border space-y-4">
         <div className="flex items-center gap-2 text-outline text-xs uppercase tracking-wider">
@@ -234,6 +248,9 @@ export function AptitudeProblem({ problem }: AptitudeProblemProps) {
           )}
         </div>
       )}
+
+      {/* Bookmark + Notes */}
+      <BookmarkButton problem={problem} />
 
       {/* AI Hints */}
       {!result && <HintPanel problem={problem} />}

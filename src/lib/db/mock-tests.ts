@@ -86,23 +86,28 @@ export async function submitAttempt(
     problemDocs.filter(Boolean).map((p) => [p!.id, p!])
   );
 
-  // Grade per section
+  // Grade per section.
+  // Aptitude is checked against correctAnswer; DSA code isn't auto-graded
+  // in mock tests, so any submitted answer counts as attempted credit.
   const sectionScores: Record<string, number> = {};
-  let totalAptitude = 0;
+  let totalProblems = 0;
   let totalCorrect = 0;
 
   for (const section of test.sections) {
     let sectionCorrect = 0;
+    totalProblems += section.problemIds.length;
     for (const problemId of section.problemIds) {
       const problem = problemMap.get(problemId);
       const answer = answers[problemId];
       if (!problem || !answer) continue;
       if (section.type === "aptitude" && problem.correctAnswer) {
-        totalAptitude++;
         if (answer === problem.correctAnswer) {
           sectionCorrect++;
           totalCorrect++;
         }
+      } else if (section.type === "dsa") {
+        sectionCorrect++;
+        totalCorrect++;
       }
     }
     const denominator = section.problemIds.length;
@@ -111,7 +116,7 @@ export async function submitAttempt(
   }
 
   const overallScore =
-    totalAptitude > 0 ? Math.round((totalCorrect / totalAptitude) * 100) : 0;
+    totalProblems > 0 ? Math.round((totalCorrect / totalProblems) * 100) : 0;
 
   await updateDoc(attemptRef, {
     answers,

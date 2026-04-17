@@ -37,6 +37,15 @@ export async function updateUser(uid: string, data: Partial<UserProfile>) {
   });
 }
 
+/** Look up a user by their username (case-insensitive within stored format). */
+export async function getUserByUsername(username: string): Promise<(UserProfile & { uid: string }) | null> {
+  const q = query(collection(db, "users"), where("username", "==", username));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { uid: d.id, ...d.data() } as UserProfile & { uid: string };
+}
+
 /** Check if a username is already taken by another user. */
 export async function isUsernameTaken(username: string, excludeUid?: string): Promise<boolean> {
   const q = query(

@@ -22,19 +22,11 @@ export interface UserAnalytics {
 }
 
 export async function getUserAnalytics(userId: string): Promise<UserAnalytics> {
-  // Get all submissions for this user
-  const subQuery = query(
-    collection(db, "submissions"),
-    where("userId", "==", userId)
-  );
-  const subSnap = await getDocs(subQuery);
-
-  // Build topic accuracy map
+  // Build topic accuracy map from the per-topic progress collection
   const topicMap = new Map<string, { attempted: number; correct: number }>();
   let totalAttempted = 0;
   let totalCorrect = 0;
 
-  // We need problem data to get topics — fetch from progress collection instead
   const progressQuery = query(
     collection(db, "progress"),
     where("userId", "==", userId)

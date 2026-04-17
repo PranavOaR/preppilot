@@ -87,9 +87,13 @@ export default function PricingPage() {
         return;
       }
 
+      const idToken = await user.getIdToken();
       const orderRes = await fetch("/api/payments/create-order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
         body: JSON.stringify({ plan: tier }),
       });
 
@@ -118,9 +122,13 @@ export default function PricingPage() {
         handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
             // Step 1: verify signature server-side
+            const verifyToken = await user.getIdToken();
             const verifyRes = await fetch("/api/payments/verify", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${verifyToken}`,
+              },
               body: JSON.stringify({
                 orderId: response.razorpay_order_id,
                 paymentId: response.razorpay_payment_id,

@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Track whether a sign-in handler already loaded the profile to avoid
   // double-loading when onAuthStateChanged fires immediately after.
-  const profileLoadedBySignIn = { current: false };
+  const profileLoadedBySignIn = useRef(false);
 
   async function loadProfile(firebaseUser: User) {
     const userProfile = await ensureUserProfile(firebaseUser);

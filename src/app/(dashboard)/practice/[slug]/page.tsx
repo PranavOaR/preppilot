@@ -12,6 +12,8 @@ import { recordSolve } from "@/lib/db/record-solve";
 import { useAuth } from "@/contexts/auth-context";
 import { HintPanel } from "@/components/practice/hint-panel";
 import { CodeReviewPanel } from "@/components/practice/code-review-panel";
+import { BookmarkButton } from "@/components/practice/bookmark-button";
+import { SolveCelebration } from "@/components/practice/solve-celebration";
 import type { Problem } from "@/lib/types";
 import type { TestCaseResult } from "@/lib/judge/client";
 import { PLAN_LIMITS } from "@/lib/types/plans";
@@ -81,6 +83,7 @@ export default function ProblemPage() {
     language: "python" | "c" | "cpp" | "java";
     passed: boolean;
   } | null>(null);
+  const [celebration, setCelebration] = useState<{ xp: number } | null>(null);
 
   useEffect(() => {
     async function fetchProblem() {
@@ -285,7 +288,7 @@ export default function ProblemPage() {
         // Record the submission in Firestore
         if (user) {
           try {
-            await recordSolve({
+            const result = await recordSolve({
               userId: user.uid,
               problemId: problem.id,
               problemTitle: problem.title,
@@ -297,6 +300,9 @@ export default function ProblemPage() {
               passed: data.summary.allPassed,
             });
             refreshProfile();
+            if (result.isFirstSolve) {
+              setCelebration({ xp: result.xp });
+            }
           } catch (recordErr) {
             console.error("Failed to record submission:", recordErr);
           }
@@ -358,7 +364,7 @@ export default function ProblemPage() {
           >
             <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </Link>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap flex-1">
             <h1 className="text-on-surface text-xl font-medium">{problem.title}</h1>
             <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${difficultyStyles[problem.difficulty]}`}>
               {problem.difficulty}
@@ -368,6 +374,7 @@ export default function ProblemPage() {
             </span>
             <span className="text-outline text-xs">{problem.xpReward} XP</span>
           </div>
+          <BookmarkButton problem={problem} compact />
         </div>
         <AptitudeProblem problem={problem} />
       </main>
@@ -377,6 +384,14 @@ export default function ProblemPage() {
   // ─── DSA Code Editor Layout ───
   return (
     <main className="max-w-[1400px] mx-auto px-2 sm:px-4 py-3 sm:py-4">
+      {celebration && (
+        <SolveCelebration
+          problem={problem}
+          xpEarned={celebration.xp}
+          username={profile?.username}
+          onClose={() => setCelebration(null)}
+        />
+      )}
       {/* Back + Title */}
       <div className="flex items-center gap-3 mb-3 sm:mb-4 px-2 sm:px-0">
         <Link
@@ -385,13 +400,14 @@ export default function ProblemPage() {
         >
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
         </Link>
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
           <h1 className="text-on-surface text-base sm:text-lg font-medium truncate">{problem.title}</h1>
           <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize shrink-0 ${difficultyStyles[problem.difficulty]}`}>
             {problem.difficulty}
           </span>
           <span className="text-outline text-xs shrink-0">{problem.xpReward} XP</span>
         </div>
+        <BookmarkButton problem={problem} compact />
       </div>
 
       {/* Mobile Panel Switcher */}
@@ -479,6 +495,8 @@ export default function ProblemPage() {
                 </div>
               </div>
             )}
+
+            <BookmarkButton problem={problem} />
 
             <HintPanel problem={problem} />
 

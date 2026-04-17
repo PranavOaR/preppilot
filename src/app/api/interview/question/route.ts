@@ -10,7 +10,12 @@ import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 let _groq: Groq | null = null;
 function getGroq(): Groq {
-  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  if (!_groq) {
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error("GROQ_API_KEY is not configured in .env.local");
+    }
+    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
   return _groq;
 }
 

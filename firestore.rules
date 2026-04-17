@@ -114,5 +114,11 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ─── Bookmarks ───
+    // doc ID: {userId}_{problemId}
+    match /bookmarks/{bookmarkId} {
+      allow read, write: if isSignedIn() && bookmarkId.matches(request.auth.uid + '_.*');
+    }
+
   }
 }

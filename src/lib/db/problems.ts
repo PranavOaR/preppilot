@@ -117,6 +117,33 @@ export async function getAllProblems(): Promise<Problem[]> {
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Problem[];
 }
 
+/**
+ * Picks the same problem for everyone on a given UTC day so we can
+ * have leaderboards / shared daily challenges. Deterministic from date string.
+ */
+export async function getDailyChallenge(): Promise<Problem | null> {
+  const all = await getAllProblems();
+  const published = all.filter((p) => !p.status || p.status === "published");
+  if (published.length === 0) return null;
+
+  // Sort to get deterministic ordering across machines
+  published.sort((a, b) => a.id.localeCompare(b.id));
+
+  const today = new Date();
+  const dateKey = `${today.getUTCFullYear()}-${today.getUTCMonth() + 1}-${today.getUTCDate()}`;
+  let hash = 0;
+  for (let i = 0; i < dateKey.length; i++) {
+    hash = (hash * 31 + dateKey.charCodeAt(i)) >>> 0;
+  }
+  return published[hash % published.length];
+}
+
+/** Deterministic UTC date key, exposed so callers can show "today's" indicator */
+export function getDailyChallengeDateKey(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
 export interface CreateProblemData {
   title: string;
   slug: string;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 import type { PlanTier } from "@/lib/types/plans";
 
@@ -37,7 +37,13 @@ export async function POST(req: NextRequest) {
       .update(`${orderId}|${paymentId}`)
       .digest("hex");
 
-    if (expectedSignature !== signature) {
+    // Constant-time comparison to prevent timing attacks
+    const expectedBuf = Buffer.from(expectedSignature, "hex");
+    const receivedBuf = Buffer.from(signature, "hex");
+    if (
+      expectedBuf.length !== receivedBuf.length ||
+      !timingSafeEqual(expectedBuf, receivedBuf)
+    ) {
       return NextResponse.json({ error: "Invalid payment signature." }, { status: 400 });
     }
 

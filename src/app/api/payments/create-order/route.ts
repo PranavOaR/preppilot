@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PLAN_PRICES, INTERVIEW_ADDON_PRICE, type PlanTier } from "@/lib/types/plans";
+import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 
 export async function POST(req: NextRequest) {
   try {
+    const token = extractBearerToken(req);
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+    const authUser = await verifyIdToken(token);
+    if (!authUser) {
+      return NextResponse.json({ error: "Invalid token." }, { status: 401 });
+    }
+
     const body = (await req.json()) as
       | { plan: Exclude<PlanTier, "free"> }
       | { type: "interview_addon" };

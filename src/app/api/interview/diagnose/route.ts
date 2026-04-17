@@ -5,9 +5,8 @@ const SARVAM_URL = (process.env.SARVAM_API_URL || "https://api.sarvam.ai").repla
 const SARVAM_KEY = (process.env.SARVAM_API_KEY || "").trim();
 const GROQ_KEY = process.env.GROQ_API_KEY || "";
 
-// GET /api/interview/diagnose — requires authentication
+// GET /api/interview/diagnose — admin-only diagnostic endpoint
 export async function GET(req: NextRequest) {
-  // Require auth — only admins / developers should see this
   const token = extractBearerToken(req);
   if (!token) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
@@ -15,6 +14,16 @@ export async function GET(req: NextRequest) {
   const authUser = await verifyIdToken(token);
   if (!authUser) {
     return NextResponse.json({ error: "Invalid token." }, { status: 401 });
+  }
+
+  // Admin UID allowlist — no Firebase Admin SDK available for role lookup,
+  // so admin UIDs must be configured via env var.
+  const adminUids = (process.env.ADMIN_UIDS || "")
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean);
+  if (adminUids.length === 0 || !adminUids.includes(authUser.uid)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
   const results: Record<string, unknown> = {};

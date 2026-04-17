@@ -10,6 +10,7 @@ import { getContests } from "@/lib/db/contests";
 import type { Problem, Contest } from "@/lib/types";
 import { PLAN_LIMITS } from "@/lib/types/plans";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+import { DailyChallengeCard } from "@/components/dashboard/daily-challenge-card";
 
 interface SubmissionItem {
   id: string;
@@ -236,6 +237,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Global Daily Challenge — same problem for everyone */}
+      <DailyChallengeCard />
+
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
         {/* Left Column */}
         <div className="space-y-6">
@@ -384,6 +388,13 @@ export default function DashboardPage() {
               >
                 <span className="material-symbols-outlined text-primary-brand text-[20px]">emoji_events</span>
                 <span className="text-on-surface text-sm">Contests</span>
+              </Link>
+              <Link
+                href="/bookmarks"
+                className="flex items-center gap-3 p-3 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors"
+              >
+                <span className="material-symbols-outlined text-yellow-400 text-[20px]">bookmark</span>
+                <span className="text-on-surface text-sm">Bookmarks</span>
               </Link>
             </div>
           </div>

@@ -83,10 +83,9 @@ export async function checkAndIncrementUsage(
         if (purchased <= 0) {
           return { allowed: false, remaining: 0, limit, plan };
         }
-        // Consume one purchased credit
-        const updated: MonthlyUsage = { ...usage, [field]: current + 1 };
+        // Consume one purchased credit — do NOT increment monthly/lifetime field,
+        // since the plan quota is already exhausted.
         transaction.update(userRef, {
-          usageThisMonth: updated,
           purchasedInterviews: purchased - 1,
         });
         return { allowed: true, remaining: purchased - 1, limit, plan };

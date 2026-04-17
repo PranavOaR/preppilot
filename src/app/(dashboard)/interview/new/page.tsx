@@ -104,9 +104,13 @@ export default function NewInterviewPage() {
         return;
       }
 
+      const idToken = await user.getIdToken();
       const orderRes = await fetch("/api/payments/create-order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
         body: JSON.stringify({ type: "interview_addon" }),
       });
 
@@ -134,9 +138,13 @@ export default function NewInterviewPage() {
           razorpay_signature: string;
         }) => {
           try {
+            const verifyToken = await user.getIdToken();
             const verifyRes = await fetch("/api/payments/verify", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${verifyToken}`,
+              },
               body: JSON.stringify({
                 orderId: response.razorpay_order_id,
                 paymentId: response.razorpay_payment_id,

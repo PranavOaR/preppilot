@@ -127,10 +127,11 @@ export async function submitContestAnswer(
   }
 
   // Use atomic increment to prevent concurrent double-credit
-  await updateDoc(participantRef, {
-    score: isCorrect ? increment(1) : increment(0),
+  const update: Record<string, ReturnType<typeof increment>> = {
     totalTime: increment(timeTaken),
-  });
+  };
+  if (isCorrect) update.score = increment(1);
+  await updateDoc(participantRef, update);
 }
 
 export async function getContestLeaderboard(contestId: string): Promise<ContestParticipant[]> {
