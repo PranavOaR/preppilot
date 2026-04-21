@@ -2,15 +2,23 @@
 
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
-import {
-  getAllUsers,
-  updateUserRole,
-  updateUserPlan,
-  unflagUser,
-  resetInterviewUsage,
-  type UserWithId,
-} from "@/lib/db/admin";
+import { getAllUsers, type UserWithId } from "@/lib/db/admin";
 import { PLAN_LIMITS, type PlanTier } from "@/lib/types/plans";
+import type { User } from "firebase/auth";
+
+async function callAdminApi(currentUser: User, body: Record<string, unknown>) {
+  const token = await currentUser.getIdToken();
+  const res = await fetch("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Admin action failed");
+  }
+  return res.json();
+}
 
 const PLAN_TIERS: PlanTier[] = ["free", "starter", "pro", "premium"];
 
@@ -88,7 +96,7 @@ export default function AdminUsersPage() {
     if (!confirm(`Change this user's role to "${newRole}"?`)) return;
     setUpdatingId(userId);
     try {
-      await updateUserRole(userId, newRole);
+      await callAdminApi(currentUser!, { action: "updateRole", targetUid: userId, role: newRole });
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
       );
@@ -110,7 +118,11 @@ export default function AdminUsersPage() {
 
     setUpdatingId("bulk");
     try {
-      await Promise.all(targetIds.map((id) => updateUserPlan(id, grantPlan, expiresAt)));
+      await Promise.all(
+        targetIds.map((id) =>
+          callAdminApi(currentUser!, { action: "updatePlan", targetUid: id, plan: grantPlan, expiresAt })
+        )
+      );
       setUsers((prev) =>
         prev.map((u) =>
           targetIds.includes(u.id)
@@ -147,7 +159,7 @@ export default function AdminUsersPage() {
     if (!confirm("Clear the flag for this user?")) return;
     setUpdatingId(userId);
     try {
-      await unflagUser(userId);
+      await callAdminApi(currentUser!, { action: "unflag", targetUid: userId });
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, isUnethical: false } : u))
       );
@@ -162,7 +174,7 @@ export default function AdminUsersPage() {
     if (!confirm(`Reset interview counter for ${username || userId}? This lets them use their plan quota again.`)) return;
     setUpdatingId(userId);
     try {
-      await resetInterviewUsage(userId);
+      await callAdminApi(currentUser!, { action: "resetInterviews", targetUid: userId });
       setUsers((prev) =>
         prev.map((u) => {
           if (u.id !== userId) return u;

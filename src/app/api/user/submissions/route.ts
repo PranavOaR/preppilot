@@ -14,6 +14,10 @@ export async function GET(request: Request) {
     return Response.json({ error: "userId is required" }, { status: 400 });
   }
 
+  if (userId !== auth.uid) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const limit = Math.min(Math.max(parseInt(limitParam || "20", 10) || 20, 1), 100);
 
   try {

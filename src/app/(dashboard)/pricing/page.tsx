@@ -144,26 +144,29 @@ export default function PricingPage() {
               return;
             }
 
-            const { planExpiresAt } = await verifyRes.json();
+            const verifyData = await verifyRes.json();
             const { inr } = PLAN_PRICES[tier];
 
-            // Step 2: write plan + payment record to Firestore (authenticated client)
-            await Promise.all([
-              updateDoc(doc(db, "users", user.uid), {
-                plan: tier,
-                planExpiresAt,
-                updatedAt: serverTimestamp(),
-              }),
-              setDoc(doc(db, "payments", response.razorpay_payment_id), {
-                userId: user.uid,
-                plan: tier,
-                amountInr: inr,
-                orderId: response.razorpay_order_id,
-                paymentId: response.razorpay_payment_id,
-                planExpiresAt,
-                paidAt: serverTimestamp(),
-              }),
-            ]);
+            if (verifyData.plan && verifyData.planExpiresAt) {
+              // Server Admin SDK not configured — client performs Firestore writes as fallback
+              await Promise.all([
+                updateDoc(doc(db, "users", user.uid), {
+                  plan: tier,
+                  planExpiresAt: verifyData.planExpiresAt,
+                  updatedAt: serverTimestamp(),
+                }),
+                setDoc(doc(db, "payments", response.razorpay_payment_id), {
+                  userId: user.uid,
+                  plan: tier,
+                  amountInr: inr,
+                  orderId: response.razorpay_order_id,
+                  paymentId: response.razorpay_payment_id,
+                  planExpiresAt: verifyData.planExpiresAt,
+                  paidAt: serverTimestamp(),
+                }),
+              ]);
+            }
+            // When Admin SDK is configured the server already wrote plan + payment record.
 
             await refreshProfile();
             showToast(`You're now on the ${PLANS.find((p) => p.tier === tier)?.name} plan!`, "success");

@@ -28,7 +28,10 @@ interface JWK {
 let cachedKeys: Record<string, CryptoKey> = {};
 let cacheExpiry = 0;
 
-const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "";
+const FIREBASE_PROJECT_ID =
+  process.env.FIREBASE_PROJECT_ID ||
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+  "";
 const GOOGLE_JWK_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 
 /** Fetch and cache Google's public keys (JWK format) for Firebase token verification. */

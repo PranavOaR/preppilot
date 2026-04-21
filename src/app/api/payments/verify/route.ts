@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
-import type { PlanTier } from "@/lib/types/plans";
+import { getAdminDb } from "@/lib/firebase/server";
+import { FieldValue } from "firebase-admin/firestore";
+import { PLAN_PRICES, type PlanTier } from "@/lib/types/plans";
 
 export async function POST(req: NextRequest) {
   try {
-    // Authenticate the caller
     const token = extractBearerToken(req);
     if (!token) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
@@ -27,19 +28,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
+    const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (!keySecret) {
+    if (!keySecret || !keyId) {
       return NextResponse.json({ error: "Payment system not configured." }, { status: 500 });
     }
 
-    // Verify Razorpay signature: HMAC-SHA256(orderId + "|" + paymentId, keySecret)
+    // Verify Razorpay HMAC signature
     const expectedSignature = createHmac("sha256", keySecret)
       .update(`${orderId}|${paymentId}`)
       .digest("hex");
 
-    // Constant-time comparison to prevent timing attacks
     const expectedBuf = Buffer.from(expectedSignature, "hex");
-    const receivedBuf = Buffer.from(signature, "hex");
+    let receivedBuf: Buffer;
+    try {
+      receivedBuf = Buffer.from(signature, "hex");
+    } catch {
+      return NextResponse.json({ error: "Invalid payment signature." }, { status: 400 });
+    }
     if (
       expectedBuf.length !== receivedBuf.length ||
       !timingSafeEqual(expectedBuf, receivedBuf)
@@ -47,16 +53,74 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid payment signature." }, { status: 400 });
     }
 
+    // Cross-check the order amount against Razorpay to prevent plan-tier fraud
+    // (attacker pays for starter then replays with plan="premium")
+    const razorpayAuth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    const orderRes = await fetch(`https://api.razorpay.com/v1/orders/${orderId}`, {
+      headers: { Authorization: `Basic ${razorpayAuth}` },
+    });
+    if (!orderRes.ok) {
+      return NextResponse.json({ error: "Could not verify payment order." }, { status: 502 });
+    }
+    const razorpayOrder = await orderRes.json() as { amount: number; status: string };
+
+    if (razorpayOrder.status !== "paid") {
+      return NextResponse.json({ error: "Payment not completed." }, { status: 400 });
+    }
+
+    const db = getAdminDb();
+
     // Interview add-on purchase
     if (type === "interview_addon") {
+      const expectedPaise = Number(process.env.INTERVIEW_ADDON_PRICE_PAISE || 0);
+      if (expectedPaise > 0 && razorpayOrder.amount !== expectedPaise) {
+        return NextResponse.json({ error: "Amount mismatch." }, { status: 400 });
+      }
+
+      if (db) {
+        await db.collection("users").doc(authUser.uid).update({
+          purchasedInterviews: FieldValue.increment(1),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return NextResponse.json({ success: true, type: "interview_addon" });
+      }
       return NextResponse.json({ success: true, type: "interview_addon", userId: authUser.uid });
     }
 
     // Plan upgrade purchase
-    if (!plan) {
-      return NextResponse.json({ error: "Missing plan." }, { status: 400 });
+    if (!plan || !(plan in PLAN_PRICES)) {
+      return NextResponse.json({ error: "Missing or invalid plan." }, { status: 400 });
     }
+
+    const expectedPaise = PLAN_PRICES[plan].paise;
+    if (razorpayOrder.amount !== expectedPaise) {
+      return NextResponse.json({ error: "Payment amount does not match plan price." }, { status: 400 });
+    }
+
     const planExpiresAt = Date.now() + 365 * 24 * 60 * 60 * 1000;
+
+    if (db) {
+      // Server-side write — bypasses Firestore client rules
+      await db.collection("users").doc(authUser.uid).update({
+        plan,
+        planExpiresAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      // Record payment server-side
+      await db.collection("payments").doc(paymentId).set({
+        userId: authUser.uid,
+        plan,
+        amountInr: PLAN_PRICES[plan].inr,
+        orderId,
+        paymentId,
+        planExpiresAt,
+        paidAt: FieldValue.serverTimestamp(),
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    // Fallback when Admin SDK is not configured: return data for client to write.
+    // Set FIREBASE_SERVICE_ACCOUNT_JSON to enable fully server-side activation.
     return NextResponse.json({ success: true, plan, planExpiresAt, userId: authUser.uid });
   } catch (err) {
     console.error("Payment verify error:", err);

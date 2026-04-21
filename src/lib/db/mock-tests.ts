@@ -66,6 +66,7 @@ export async function getAttempt(attemptId: string): Promise<MockTestAttempt | n
 
 export async function submitAttempt(
   attemptId: string,
+  userId: string,
   answers: Record<string, string>,
   status: "submitted" | "timed_out" = "submitted"
 ): Promise<void> {
@@ -74,6 +75,8 @@ export async function submitAttempt(
   if (!attemptSnap.exists()) throw new Error("Attempt not found");
 
   const attempt = attemptSnap.data() as MockTestAttempt;
+
+  if (attempt.userId !== userId) throw new Error("Forbidden: attempt does not belong to user");
   const testSnap = await getDoc(doc(db, "mockTests", attempt.testId));
   if (!testSnap.exists()) throw new Error("Test not found");
 

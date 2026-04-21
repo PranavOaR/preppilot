@@ -138,7 +138,7 @@ export default function MockTestTakePage() {
     hasAutoSubmitted.current = true;
     setSubmitting(true);
     try {
-      await submitAttempt(attempt.id, answers, status);
+      await submitAttempt(attempt.id, user!.uid, answers, status);
       // Fetch updated attempt to get the score
       const updated = await getAttempt(attempt.id);
       if (updated) {

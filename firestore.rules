@@ -16,11 +16,19 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
+    // Fields that must only be written server-side (via Admin SDK) or by admins.
+    // Clients (including the authenticated owner) cannot touch these.
+    function touchesSensitiveFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['role', 'plan', 'planExpiresAt', 'purchasedInterviews']);
+    }
+
     // ─── Users ───
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      // Owner may update profile/game fields but NOT role, plan, planExpiresAt, purchasedInterviews.
+      allow update: if (isOwner(userId) && !touchesSensitiveFields()) || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -41,14 +49,16 @@ service cloud.firestore {
     // ─── Progress ───
     // doc ID: {userId}_{topic}
     match /progress/{progressId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() &&
+        (progressId.matches(request.auth.uid + '_.*') || isAdmin());
       allow write: if isSignedIn() && progressId.matches(request.auth.uid + '_.*');
     }
 
     // ─── Activity Log ───
     // doc ID: {userId}_{date}
     match /activity/{activityId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() &&
+        (activityId.matches(request.auth.uid + '_.*') || isAdmin());
       allow write: if isSignedIn() && activityId.matches(request.auth.uid + '_.*');
     }
 
@@ -59,27 +69,36 @@ service cloud.firestore {
     }
 
     // ─── Contest Participants ───
+    // doc ID: {contestId}_{userId}
     match /contestParticipants/{participantId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      // Only the participant themselves can create/update their own record
+      allow create: if isSignedIn() && participantId.matches('.*_' + request.auth.uid);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
     // ─── Contest Submissions ───
+    // doc ID: {contestId}_{userId}_{problemId}
     match /contestSubmissions/{submissionId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
-    // ─── Hint Cache (shared, read by all, written server-side only) ───
+    // ─── Hint Cache (global cache, read by all signed-in users) ───
     match /hintCache/{hintId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn(); // API route handles generation logic
+      allow write: if isSignedIn(); // Written by hint API route (server-side, no auth context) or admins
     }
 
     // ─── Hint Usage ───
     // doc ID: {userId}_{problemId}_level{N}
     match /hintUsage/{usageId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() &&
+        (usageId.matches(request.auth.uid + '_.*') || isAdmin());
       allow write: if isSignedIn() && usageId.matches(request.auth.uid + '_.*');
     }
 
@@ -87,11 +106,11 @@ service cloud.firestore {
     match /interviewSessions/{sessionId} {
       allow read: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
 
-      // Q&A subcollection — only the session owner can read/write
+      // Q&A subcollection — only the session owner
       match /questions/{index} {
         allow read, write: if isSignedIn() &&
           get(/databases/$(database)/documents/interviewSessions/$(sessionId)).data.userId == request.auth.uid;
@@ -108,9 +127,12 @@ service cloud.firestore {
     }
 
     // ─── Payments ───
+    // Written by the server (Admin SDK). Clients can create their own record as fallback
+    // when Admin SDK is not configured; only admins can read all records.
     match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn();
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
@@ -118,6 +140,15 @@ service cloud.firestore {
     // doc ID: {userId}_{problemId}
     match /bookmarks/{bookmarkId} {
       allow read, write: if isSignedIn() && bookmarkId.matches(request.auth.uid + '_.*');
+    }
+
+    // ─── Mock Test Attempts ───
+    match /mockTestAttempts/{attemptId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
   }

@@ -21,8 +21,7 @@ async function assertAdmin(callerUid: string): Promise<void> {
   }
 }
 
-export async function getAllUsers(callerUid?: string): Promise<UserWithId[]> {
-  if (callerUid) await assertAdmin(callerUid);
+export async function getAllUsers(): Promise<UserWithId[]> {
   const snapshot = await getDocs(collection(db, "users"));
   return snapshot.docs.map((d) => ({
     id: d.id,
@@ -30,8 +29,8 @@ export async function getAllUsers(callerUid?: string): Promise<UserWithId[]> {
   })) as UserWithId[];
 }
 
-export async function updateUserRole(uid: string, role: "user" | "admin", callerUid?: string) {
-  if (callerUid) await assertAdmin(callerUid);
+export async function updateUserRole(uid: string, role: "user" | "admin", callerUid: string) {
+  await assertAdmin(callerUid);
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, { role });
 }
@@ -44,9 +43,9 @@ export async function updateUserPlan(
   uid: string,
   plan: PlanTier,
   expiresAt: number | null,
-  callerUid?: string
+  callerUid: string
 ) {
-  if (callerUid) await assertAdmin(callerUid);
+  await assertAdmin(callerUid);
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, {
     plan,
@@ -55,8 +54,8 @@ export async function updateUserPlan(
 }
 
 /** Clear the isUnethical flag for a user (e.g. after review). */
-export async function unflagUser(uid: string, callerUid?: string) {
-  if (callerUid) await assertAdmin(callerUid);
+export async function unflagUser(uid: string, callerUid: string) {
+  await assertAdmin(callerUid);
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, { isUnethical: false });
 }
@@ -66,8 +65,8 @@ export async function unflagUser(uid: string, callerUid?: string) {
  * Resets both interviewsLifetime (free/starter/pro) and interviewsThisMonth (premium)
  * so the user can start a fresh interview regardless of plan type.
  */
-export async function resetInterviewUsage(uid: string, callerUid?: string) {
-  if (callerUid) await assertAdmin(callerUid);
+export async function resetInterviewUsage(uid: string, callerUid: string) {
+  await assertAdmin(callerUid);
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, {
     "usageThisMonth.interviewsLifetime": 0,

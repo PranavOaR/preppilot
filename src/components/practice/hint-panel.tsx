@@ -4,9 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getAuth } from "firebase/auth";
 import { useAuth } from "@/contexts/auth-context";
-import { getUserUnlockedLevels, getCachedHint, setCachedHint, recordHintUsage } from "@/lib/db/hints";
-import { checkAndIncrementUsage } from "@/lib/plans/usage";
-import { awardXP } from "@/lib/xp/calculator";
+import { getUserUnlockedLevels, getCachedHint } from "@/lib/db/hints";
 import { PLAN_LIMITS } from "@/lib/types/plans";
 import type { Problem } from "@/lib/types";
 
@@ -49,39 +47,18 @@ export function HintPanel({ problem }: HintPanelProps) {
     setLoading(level);
     setError(null);
 
-    const xpCost = HINT_LEVELS.find(h => h.level === level)?.cost ?? 5;
-
     try {
-      // 1. Client-side quota check + increment
-      const quotaCheck = await checkAndIncrementUsage(user.uid, "aiHint");
-      if (!quotaCheck.allowed) {
-        setError(`Monthly hint limit reached on your ${quotaCheck.plan} plan. Upgrade for more hints.`);
-        return;
-      }
-
-      // 2. Client-side XP check — if insufficient, skip (quota already consumed)
-      const userXP = profile?.xp ?? 0;
-      if (userXP < xpCost) {
-        // Roll back the quota increment since we're not generating
-        try {
-          const { rollbackUsage } = await import("@/lib/plans/usage");
-          await rollbackUsage(user.uid, "aiHint");
-        } catch { /* best-effort rollback */ }
-        setError(`Not enough XP. Need ${xpCost} XP, you have ${userXP}.`);
-        return;
-      }
-
-      // 3. Check hint cache first (avoid calling API for already-generated hints)
+      // Check local cache before hitting server
       let hintText = await getCachedHint(problem.id, level);
 
       if (!hintText) {
-        // 4. Call API with problem data (server verifies auth and calls Groq)
         const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+        if (!idToken) { setError("Not authenticated."); return; }
         const res = await fetch("/api/hints", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+            Authorization: `Bearer ${idToken}`,
           },
           body: JSON.stringify({ problem, hintLevel: level }),
         });
@@ -94,28 +71,14 @@ export function HintPanel({ problem }: HintPanelProps) {
         }
 
         hintText = data.hint;
-
-        // 5. Cache the hint client-side
-        try {
-          await setCachedHint(problem.id, level, hintText!, "groq");
-        } catch { /* caching is optional, ignore errors */ }
       }
-
-      // 6. Deduct XP client-side
-      try {
-        await awardXP(user.uid, -xpCost);
-      } catch { /* non-critical */ }
-
-      // 7. Record hint usage client-side
-      try {
-        await recordHintUsage(user.uid, problem.id, level, xpCost);
-      } catch { /* non-critical */ }
 
       setHints((prev) => ({ ...prev, [level]: hintText! }));
       setUnlockedLevels((prev) =>
         prev.includes(level) ? prev : [...prev, level].sort()
       );
       setExpandedLevel(level);
+      // Refresh to reflect updated XP and usage counters
       refreshProfile();
     } catch {
       setError("Failed to connect to hint service.");

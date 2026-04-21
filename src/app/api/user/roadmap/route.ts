@@ -16,6 +16,10 @@ export async function GET(request: Request) {
     return Response.json({ error: "userId is required" }, { status: 400 });
   }
 
+  if (userId !== auth.uid) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const [userProfile, topicProgress, allProblemsResult] = await Promise.all([
       getUser(userId),
