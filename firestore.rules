@@ -144,6 +144,12 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && bookmarkId.matches(request.auth.uid + '_.*');
     }
 
+    // ─── Mock Tests ───
+    match /mockTests/{testId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // ─── Mock Test Attempts ───
     match /mockTestAttempts/{attemptId} {
       allow read: if isSignedIn() &&

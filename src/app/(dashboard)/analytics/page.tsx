@@ -15,13 +15,18 @@ interface ActivityDay {
 }
 
 export default function AnalyticsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [analytics, setAnalytics] = useState<UserAnalytics | null>(null);
   const [activity, setActivity] = useState<ActivityDay[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    // Wait for auth to resolve before deciding what to do
+    if (authLoading) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const token = await user!.getIdToken();
@@ -36,12 +41,16 @@ export default function AnalyticsPage() {
         ]);
         setAnalytics(analyticsData);
         setActivity(activityData as ActivityDay[]);
+      } catch (err) {
+        console.error("Analytics load error:", err);
+        // Still set analytics to an empty state so the page renders
+        setAnalytics({ topicAccuracies: [], totalAttempted: 0, totalCorrect: 0, overallAccuracy: 0, percentile: 0 });
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [user]);
+  }, [user, authLoading]);
 
   if (loading) {
     return (
