@@ -36,7 +36,33 @@
       "Bash(gcloud secrets:*)",
       "Bash(gcloud beta:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git rm:*)",
+      "Bash(find /Users/pranavrao/Documents/PrepPilot -name .env* -o -name env.example)",
+      "Bash(python3 -m json.tool)",
+      "Bash(ls -la /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/interview/history/page.tsx)",
+      "Bash(ls -la /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/onboarding/page.tsx)",
+      "Bash(test -f /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/interview/history/page.tsx)",
+      "Bash(test -f /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/onboarding/page.tsx)",
+      "Bash(ls -la /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/)",
+      "Bash(python3:*)",
+      "Bash(undefined\". When no DSA topics were selected, topics:undefined was spread into the:*)",
+      "WebFetch(domain:docs.sarvam.ai)",
+      "Bash(ls /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/analytics)",
+      "Bash(ls /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/mock-tests)",
+      "Bash(ls /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/interview)",
+      "Bash(node -e \"const v = require\\(''''./node_modules/@vapi-ai/web''''\\); console.log\\(Object.keys\\(v\\)\\)\")",
+      "Bash(find node_modules/@vapi-ai -name *.d.ts)",
+      "Bash(head:*)",
+      "Bash(grep -n \"deps\\\\|dependency\" /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/leaderboard/[id]/take/page.tsx)",
+      "Bash(grep -r \"state.*after.*unmount\\\\|useRef.*useEffect\" /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/practice/[slug]/page.tsx)",
+      "Bash(grep -n \"error\\\\|catch\\\\|finally\" /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/practice/[slug]/page.tsx)",
+      "Bash(grep -rn \"async function.*submit\\\\|handleSubmit\" /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/practice/[slug]/page.tsx)",
+      "Bash(grep -n \"missing.*error\\\\|try.*catch\" /Users/pranavrao/Documents/PrepPilot/src/app/\\\\\\(dashboard\\\\\\)/mock-tests/[testId]/page.tsx)",
+      "Bash(git *)"
     ]
+  },
+  "enabledPlugins": {
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
   }
 }

@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getInterviewSession } from "@/lib/db/interviews";
 import { InterviewActive } from "@/components/interview/interview-active";
-import { ProctorWrapper } from "@/components/proctor/ProctorWrapper";
 import type { InterviewSession, InterviewConfig } from "@/lib/types/interview";
 
 export default function InterviewSessionPage() {
@@ -55,14 +54,12 @@ export default function InterviewSessionPage() {
   };
 
   return (
-    <ProctorWrapper>
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <InterviewActive
-          sessionId={sessionId}
-          config={config}
-          userId={user.uid}
-        />
-      </main>
-    </ProctorWrapper>
+    <main className="max-w-7xl mx-auto px-6 py-8">
+      <InterviewActive
+        sessionId={sessionId}
+        config={config}
+        userId={user.uid}
+      />
+    </main>
   );
 }

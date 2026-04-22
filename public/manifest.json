@@ -1,0 +1,42 @@
+{
+  "name": "PrepPilot — Crack Your Campus Placements",
+  "short_name": "PrepPilot",
+  "description": "Master DSA, aptitude, and company-specific mock tests for Indian campus placements.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0f0f13",
+  "theme_color": "#7c6af7",
+  "orientation": "portrait-primary",
+  "categories": ["education", "productivity"],
+  "lang": "en-IN",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Practice",
+      "short_name": "Practice",
+      "description": "Jump into problem practice",
+      "url": "/practice",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mock Tests",
+      "short_name": "Tests",
+      "description": "Take a company mock test",
+      "url": "/mock-tests",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

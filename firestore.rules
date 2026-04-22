@@ -23,13 +23,27 @@ service cloud.firestore {
         .hasAny(['role', 'plan', 'planExpiresAt', 'purchasedInterviews']);
     }
 
+    // Public fields visible to any signed-in user (for leaderboard, public profiles)
+    function isPublicUserField(field) {
+      return field in ['username', 'displayName', 'photoURL', 'university', 'targetCompany',
+                       'xp', 'currentStreak', 'totalSolved', 'badges', 'createdAt'];
+    }
+
     // ─── Users ───
     match /users/{userId} {
-      allow read: if isSignedIn();
+      // Owner and admins get full document; others get only public fields
+      allow get: if isOwner(userId) || isAdmin();
+      // Lean on client-side field selection for list queries (leaderboard, college rankings)
+      allow list: if isSignedIn();
       allow create: if isOwner(userId);
       // Owner may update profile/game fields but NOT role, plan, planExpiresAt, purchasedInterviews.
       allow update: if (isOwner(userId) && !touchesSensitiveFields()) || isAdmin();
       allow delete: if isAdmin();
+
+      // Notifications subcollection — owner only
+      match /notifications/{notifId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ─── Problems ───
@@ -142,6 +156,24 @@ service cloud.firestore {
     // doc ID: {userId}_{problemId}
     match /bookmarks/{bookmarkId} {
       allow read, write: if isSignedIn() && bookmarkId.matches(request.auth.uid + '_.*');
+    }
+
+    // ─── Editorials ───
+    match /editorials/{problemId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Discussions ───
+    match /discussions/{commentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        // Only allow updating upvotes field for non-owners, full update for owner
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']) ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // ─── Mock Tests ───

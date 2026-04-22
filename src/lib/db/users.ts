@@ -23,6 +23,7 @@ export async function getUser(uid: string): Promise<UserProfile | null> {
     longestStreak: 0,
     lastPracticeDate: null,
     badges: [],
+    streakFreezes: 0,
     createdAt: null,
     updatedAt: null,
     ...data,
@@ -57,12 +58,4 @@ export async function isUsernameTaken(username: string, excludeUid?: string): Pr
   // If only one match and it's the current user, it's not "taken"
   if (excludeUid && snap.size === 1 && snap.docs[0].id === excludeUid) return false;
   return true;
-}
-
-export async function flagUserAsUnethical(uid: string) {
-  const userRef = doc(db, "users", uid);
-  await updateDoc(userRef, {
-    isUnethical: true,
-    updatedAt: serverTimestamp(),
-  });
 }

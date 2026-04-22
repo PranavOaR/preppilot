@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getProblemById, updateProblem } from "@/lib/db/problems";
 import { ProblemForm } from "@/components/admin/problem-form";
+import { AdminEditorialEditor } from "@/components/admin/editorial-editor";
 import type { Problem } from "@/lib/types";
 
 export default function EditProblemPage() {
@@ -60,6 +61,9 @@ export default function EditProblemPage() {
         onSubmit={handleSubmit}
         submitLabel="Save Changes"
       />
+      <div className="mt-10">
+        <AdminEditorialEditor problemId={problemId} />
+      </div>
     </div>
   );
 }

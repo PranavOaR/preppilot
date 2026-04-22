@@ -22,6 +22,7 @@ export interface UserProfile {
   longestStreak: number;
   lastPracticeDate: Timestamp | null;
   badges: string[];
+  streakFreezes?: number;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }

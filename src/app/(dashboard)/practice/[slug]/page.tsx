@@ -14,6 +14,8 @@ import { HintPanel } from "@/components/practice/hint-panel";
 import { CodeReviewPanel } from "@/components/practice/code-review-panel";
 import { BookmarkButton } from "@/components/practice/bookmark-button";
 import { SolveCelebration } from "@/components/practice/solve-celebration";
+import { EditorialPanel } from "@/components/practice/editorial-panel";
+import { DiscussionPanel } from "@/components/practice/discussion-panel";
 import type { Problem } from "@/lib/types";
 import type { TestCaseResult } from "@/lib/judge/client";
 import { PLAN_LIMITS } from "@/lib/types/plans";
@@ -73,6 +75,7 @@ export default function ProblemPage() {
   } | null>(null);
   const [activeTab, setActiveTab] = useState<"editor" | "results">("editor");
   const [mobilePanelTab, setMobilePanelTab] = useState<"description" | "code">("description");
+  const [leftPanelTab, setLeftPanelTab] = useState<"description" | "editorial" | "discuss">("description");
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [runCooldown, setRunCooldown] = useState(0); // seconds remaining in cooldown
   const lastRunCodeRef = useRef<string>(""); // code that was last run
@@ -438,139 +441,168 @@ export default function ProblemPage() {
       {/* Split Layout */}
       <div className="rounded-lg bg-surface-container subtle-border overflow-hidden">
         <div className="lg:grid lg:grid-cols-2" style={{ minHeight: "calc(100vh - 140px)" }}>
-          {/* Left: Problem Description */}
+          {/* Left: Problem Description / Editorial / Discuss */}
           <div
-            className={`p-4 sm:p-6 space-y-5 border-r border-outline-variant/10 overflow-y-auto ${mobilePanelTab === "description" ? "block" : "hidden lg:block"}`}
+            className={`flex flex-col border-r border-outline-variant/10 overflow-hidden ${mobilePanelTab === "description" ? "flex" : "hidden lg:flex"}`}
             style={{ maxHeight: "calc(100vh - 140px)" }}
           >
-            <div className="space-y-3">
-              <h4 className="text-on-surface text-sm font-medium uppercase tracking-wider">
-                Problem Description
-              </h4>
-              <div className="text-on-surface-variant text-sm leading-relaxed whitespace-pre-wrap">
-                {problem.description}
-              </div>
+            {/* Left panel tab nav */}
+            <div className="flex items-center gap-0 border-b border-outline-variant/10 shrink-0">
+              {(["description", "editorial", "discuss"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setLeftPanelTab(tab)}
+                  className={`px-4 py-2 text-xs font-medium capitalize transition-colors border-b-2 ${
+                    leftPanelTab === tab
+                      ? "border-primary-brand text-primary-brand"
+                      : "border-transparent text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  {tab === "discuss" ? "Discuss" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
             </div>
 
-            {problem.examples.map((ex, i) => (
-              <div key={i} className="space-y-2 p-4 rounded-lg bg-surface-container-lowest">
-                <p className="text-on-surface text-sm font-medium">Example {i + 1}:</p>
-                <div className="font-mono text-xs space-y-1 text-on-surface-variant">
-                  {ex.input && (
-                    <p>
-                      <span className="text-outline">Input:</span> {ex.input}
-                    </p>
-                  )}
-                  <p>
-                    <span className="text-outline">Output:</span> {ex.output}
-                  </p>
-                  {ex.explanation && (
-                    <p>
-                      <span className="text-outline">Explanation:</span> {ex.explanation}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+              {leftPanelTab === "description" && (
+                <>
+                  <div className="space-y-3">
+                    <div className="text-on-surface-variant text-sm leading-relaxed whitespace-pre-wrap">
+                      {problem.description}
+                    </div>
+                  </div>
 
-            {problem.constraints.length > 0 && (
-              <div className="space-y-2">
-                <h5 className="text-on-surface text-sm font-medium">Constraints:</h5>
-                <ul className="space-y-1 text-on-surface-variant text-xs font-mono">
-                  {problem.constraints.map((c, i) => (
-                    <li key={i}>&bull; {c}</li>
+                  {problem.examples.map((ex, i) => (
+                    <div key={i} className="space-y-2 p-4 rounded-lg bg-surface-container-lowest">
+                      <p className="text-on-surface text-sm font-medium">Example {i + 1}:</p>
+                      <div className="font-mono text-xs space-y-1 text-on-surface-variant">
+                        {ex.input && (
+                          <p>
+                            <span className="text-outline">Input:</span> {ex.input}
+                          </p>
+                        )}
+                        <p>
+                          <span className="text-outline">Output:</span> {ex.output}
+                        </p>
+                        {ex.explanation && (
+                          <p>
+                            <span className="text-outline">Explanation:</span> {ex.explanation}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </ul>
-              </div>
-            )}
 
-            {problem.companies.length > 0 && (
-              <div className="space-y-2">
-                <h5 className="text-on-surface text-sm font-medium">Asked by:</h5>
-                <div className="flex flex-wrap gap-2">
-                  {problem.companies.map((c) => (
-                    <span key={c} className="px-2 py-1 rounded text-xs bg-primary-container/20 text-primary-brand">
-                      {c}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <BookmarkButton problem={problem} />
-
-            <HintPanel problem={problem} />
-
-            {/* Resources Panel */}
-            <div className="space-y-2">
-              <button
-                onClick={() => setResourcesOpen(!resourcesOpen)}
-                className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">
-                  {resourcesOpen ? "expand_less" : "library_books"}
-                </span>
-                <span>Resources</span>
-                {problem.resources && problem.resources.length > 0 && (
-                  <span className="text-xs text-primary-brand">
-                    ({problem.resources.length})
-                  </span>
-                )}
-              </button>
-              {resourcesOpen && (
-                <div className="rounded-lg bg-surface-container-low subtle-border p-4 space-y-3">
-                  {!problem.resources || problem.resources.length === 0 ? (
-                    <p className="text-xs text-on-surface-variant">
-                      No resources added yet for this problem.
-                    </p>
-                  ) : (
-                    (() => {
-                      const videos = problem.resources.filter((r) => r.type === "video");
-                      const articles = problem.resources.filter((r) => r.type === "article");
-                      const similar = problem.resources.filter((r) => r.type === "similar");
-                      return (
-                        <>
-                          {videos.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Videos</p>
-                              {videos.map((r, i) => (
-                                <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
-                                  <span className="material-symbols-outlined text-[14px]">play_circle</span>
-                                  {r.title}
-                                  <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                          {articles.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Articles</p>
-                              {articles.map((r, i) => (
-                                <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
-                                  <span className="material-symbols-outlined text-[14px]">article</span>
-                                  {r.title}
-                                  <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                          {similar.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Similar Problems</p>
-                              {similar.map((r, i) => (
-                                <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
-                                  <span className="material-symbols-outlined text-[14px]">link</span>
-                                  {r.title}
-                                  <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()
+                  {problem.constraints.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="text-on-surface text-sm font-medium">Constraints:</h5>
+                      <ul className="space-y-1 text-on-surface-variant text-xs font-mono">
+                        {problem.constraints.map((c, i) => (
+                          <li key={i}>&bull; {c}</li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
-                </div>
+
+                  {problem.companies.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="text-on-surface text-sm font-medium">Asked by:</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {problem.companies.map((c) => (
+                          <span key={c} className="px-2 py-1 rounded text-xs bg-primary-container/20 text-primary-brand">
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <BookmarkButton problem={problem} />
+
+                  <HintPanel problem={problem} />
+
+                  {/* Resources Panel */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setResourcesOpen(!resourcesOpen)}
+                      className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">
+                        {resourcesOpen ? "expand_less" : "library_books"}
+                      </span>
+                      <span>Resources</span>
+                      {problem.resources && problem.resources.length > 0 && (
+                        <span className="text-xs text-primary-brand">
+                          ({problem.resources.length})
+                        </span>
+                      )}
+                    </button>
+                    {resourcesOpen && (
+                      <div className="rounded-lg bg-surface-container-low subtle-border p-4 space-y-3">
+                        {!problem.resources || problem.resources.length === 0 ? (
+                          <p className="text-xs text-on-surface-variant">
+                            No resources added yet for this problem.
+                          </p>
+                        ) : (
+                          (() => {
+                            const videos = problem.resources.filter((r) => r.type === "video");
+                            const articles = problem.resources.filter((r) => r.type === "article");
+                            const similar = problem.resources.filter((r) => r.type === "similar");
+                            return (
+                              <>
+                                {videos.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Videos</p>
+                                    {videos.map((r, i) => (
+                                      <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
+                                        <span className="material-symbols-outlined text-[14px]">play_circle</span>
+                                        {r.title}
+                                        <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                                {articles.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Articles</p>
+                                    {articles.map((r, i) => (
+                                      <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
+                                        <span className="material-symbols-outlined text-[14px]">article</span>
+                                        {r.title}
+                                        <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                                {similar.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Similar Problems</p>
+                                    {similar.map((r, i) => (
+                                      <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-brand hover:underline">
+                                        <span className="material-symbols-outlined text-[14px]">link</span>
+                                        {r.title}
+                                        <span className="material-symbols-outlined text-[12px] text-outline">open_in_new</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {leftPanelTab === "editorial" && (
+                <EditorialPanel problemId={problem.id} />
+              )}
+
+              {leftPanelTab === "discuss" && (
+                <DiscussionPanel problemId={problem.id} />
               )}
             </div>
           </div>

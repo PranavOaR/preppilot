@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/contexts/toast-context";
+import { useRouter } from "next/navigation";
 import { getProblems } from "@/lib/db/problems";
+import { useStreakFreeze } from "@/lib/xp/streaks";
 import { getUserContestParticipations } from "@/lib/db/contests";
 import { getUserSubmissions, getUserSolvedProblems } from "@/lib/db/submissions";
 import { getActivityLog } from "@/lib/db/activity";
@@ -36,7 +39,9 @@ interface ActivityData {
 }
 
 export default function ProfilePage() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
+  const { showToast } = useToast();
+  const router = useRouter();
 
   const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
   const [activity, setActivity] = useState<ActivityData[]>([]);
@@ -55,6 +60,7 @@ export default function ProfilePage() {
     totalParticipants: number;
     joinedAt: any;
   }[]>([]);
+  const [freezeLoading, setFreezeLoading] = useState(false);
   const [globalRank, setGlobalRank] = useState<number | null>(null);
   const [collegeRank, setCollegeRank] = useState<number | null>(null);
   const [totalUsers, setTotalUsers] = useState<number>(0);
@@ -152,6 +158,18 @@ export default function ProfilePage() {
 
     fetchData();
   }, [user, profile?.xp, profile?.university]);
+
+  async function handleUseFreeze() {
+    if (!user) return;
+    setFreezeLoading(true);
+    try {
+      const result = await useStreakFreeze(user.uid);
+      showToast(result.message, result.success ? "success" : "error");
+      if (result.success) refreshProfile();
+    } finally {
+      setFreezeLoading(false);
+    }
+  }
 
   if (!profile) {
     return (
@@ -288,6 +306,32 @@ export default function ProfilePage() {
           <p className="text-on-surface-variant text-xs mt-0.5">Longest Streak</p>
         </div>
       </div>
+
+      {/* Streak Freeze */}
+      {((profile.streakFreezes ?? 0) > 0 || true) && (
+        <div className="glass-panel subtle-border rounded-xl px-5 py-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-blue-500/15 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-blue-400 text-[20px]">ac_unit</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-on-surface text-sm font-medium">Streak Freeze</p>
+            <p className="text-on-surface-variant text-xs mt-0.5">
+              {(profile.streakFreezes ?? 0) > 0
+                ? `${profile.streakFreezes} freeze${profile.streakFreezes === 1 ? "" : "s"} available — protects your streak for a missed day`
+                : "No freezes available. Upgrade your plan to earn streak freezes."}
+            </p>
+          </div>
+          {(profile.streakFreezes ?? 0) > 0 && (
+            <button
+              onClick={handleUseFreeze}
+              disabled={freezeLoading}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors disabled:opacity-50 shrink-0"
+            >
+              {freezeLoading ? "Using…" : "Use Freeze"}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Rankings Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

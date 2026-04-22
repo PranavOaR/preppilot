@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ProctorWrapper } from "@/components/proctor/ProctorWrapper";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/auth-context";
 import { hasUserJoinedContest, submitContestAnswer } from "@/lib/db/contests";
@@ -314,8 +313,6 @@ export default function ContestTakePage() {
   const endTime = new Date(contest.endTime.seconds * 1000);
 
   return (
-    <ProctorWrapper>
-    {/* pt-[44px] offsets the fixed ContestTimer bar (57px nav + 44px timer = 101px total) */}
     <div className="pt-[44px]">
       <ContestTimer endTime={endTime} onTimeUp={handleTimeUp} />
 
@@ -638,6 +635,5 @@ export default function ContestTakePage() {
         </div>
       </div>
     </div>
-    </ProctorWrapper>
   );
 }

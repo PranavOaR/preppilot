@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, Timestamp, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 
 function getDateOnly(date: Date): string {
@@ -79,4 +79,44 @@ export async function updateStreak(userId: string) {
     },
     { merge: true }
   );
+}
+
+export async function useStreakFreeze(userId: string): Promise<{ success: boolean; message: string }> {
+  const userRef = doc(db, "users", userId);
+  const snap = await getDoc(userRef);
+  if (!snap.exists()) return { success: false, message: "User not found." };
+
+  const data = snap.data();
+  const freezes = (data.streakFreezes as number | undefined) ?? 0;
+  if (freezes < 1) return { success: false, message: "No streak freezes available." };
+
+  const lastPractice = data.lastPracticeDate as Timestamp | null;
+  const today = getDateOnly(new Date());
+  const yesterday = getYesterday();
+
+  if (!lastPractice) return { success: false, message: "No streak to protect." };
+
+  const lastDateStr = getDateOnly(lastPractice.toDate());
+
+  if (lastDateStr === today || lastDateStr === yesterday) {
+    return { success: false, message: "Your streak is still active — no freeze needed." };
+  }
+
+  // Advance lastPracticeDate to yesterday to restore the streak
+  const yesterdayTs = new Date();
+  yesterdayTs.setUTCDate(yesterdayTs.getUTCDate() - 1);
+  yesterdayTs.setUTCHours(12, 0, 0, 0);
+
+  await updateDoc(userRef, {
+    streakFreezes: increment(-1),
+    lastPracticeDate: Timestamp.fromDate(yesterdayTs),
+  });
+
+  return { success: true, message: "Streak freeze used! Your streak has been preserved." };
+}
+
+export async function grantStreakFreeze(userId: string, count = 1) {
+  await updateDoc(doc(db, "users", userId), {
+    streakFreezes: increment(count),
+  });
 }
