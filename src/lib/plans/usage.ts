@@ -8,7 +8,7 @@ import {
   type MonthlyUsage,
 } from "@/lib/types/plans";
 
-type UsageAction = "dsaRun" | "dsaSubmit" | "aiHint" | "codeReview" | "interview";
+type UsageAction = "dsaRun" | "dsaSubmit" | "aiHint" | "codeReview" | "interview" | "mockTest";
 
 interface UsageCheckResult {
   allowed: boolean;
@@ -92,13 +92,14 @@ export async function checkAndIncrementUsage(
       }
     } else {
       const actionMap: Record<Exclude<UsageAction, "interview">, { field: keyof MonthlyUsage; limit: number }> = {
-        dsaRun:     { field: "dsaRuns",    limit: limits.dsaRuns },
-        dsaSubmit:  { field: "dsaSubmits", limit: limits.dsaSubmits },
-        aiHint:     { field: "aiHints",    limit: limits.aiHints },
-        codeReview: { field: "codeReviews", limit: limits.codeReviews },
+        dsaRun:     { field: "dsaRuns",           limit: limits.dsaRuns },
+        dsaSubmit:  { field: "dsaSubmits",         limit: limits.dsaSubmits },
+        aiHint:     { field: "aiHints",            limit: limits.aiHints },
+        codeReview: { field: "codeReviews",        limit: limits.codeReviews },
+        mockTest:   { field: "mockTestsThisMonth", limit: limits.mockTests },
       };
       ({ field, limit } = actionMap[action as Exclude<UsageAction, "interview">]);
-      current = usage[field] as number;
+      current = (usage[field] as number | undefined) ?? 0;
 
       if (current >= limit) {
         return { allowed: false, remaining: 0, limit, plan };
@@ -130,10 +131,11 @@ export async function rollbackUsage(userId: string, action: UsageAction): Promis
       field = limits.interviewsMonthly ? "interviewsThisMonth" : "interviewsLifetime";
     } else {
       const fieldMap: Record<Exclude<UsageAction, "interview">, keyof MonthlyUsage> = {
-        dsaRun: "dsaRuns",
-        dsaSubmit: "dsaSubmits",
-        aiHint: "aiHints",
+        dsaRun:     "dsaRuns",
+        dsaSubmit:  "dsaSubmits",
+        aiHint:     "aiHints",
         codeReview: "codeReviews",
+        mockTest:   "mockTestsThisMonth",
       };
       field = fieldMap[action as Exclude<UsageAction, "interview">];
     }

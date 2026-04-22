@@ -7,6 +7,7 @@ export interface MonthlyUsage {
   codeReviews: number;
   interviewsThisMonth: number;
   interviewsLifetime: number;
+  mockTestsThisMonth: number;
   month: string; // 'YYYY-MM'
 }
 
@@ -18,13 +19,15 @@ export interface PlanLimits {
   /** For premium: monthly interviews. For others: lifetime interviews. */
   interviews: number;
   interviewsMonthly: boolean;
+  /** Monthly mock test attempts allowed */
+  mockTests: number;
 }
 
 export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
-  free:    { dsaRuns: 25,  dsaSubmits: 8,  aiHints: 8,  codeReviews: 0, interviews: 1, interviewsMonthly: false },
-  starter: { dsaRuns: 50,  dsaSubmits: 12, aiHints: 12, codeReviews: 0, interviews: 1, interviewsMonthly: false },
-  pro:     { dsaRuns: 150, dsaSubmits: 30, aiHints: 25, codeReviews: 1, interviews: 1, interviewsMonthly: false },
-  premium: { dsaRuns: 300, dsaSubmits: 75, aiHints: 50, codeReviews: 4, interviews: 2, interviewsMonthly: true  },
+  free:    { dsaRuns: 25,  dsaSubmits: 8,  aiHints: 8,  codeReviews: 0, interviews: 1, interviewsMonthly: false, mockTests: 2   },
+  starter: { dsaRuns: 50,  dsaSubmits: 12, aiHints: 12, codeReviews: 0, interviews: 1, interviewsMonthly: false, mockTests: 5   },
+  pro:     { dsaRuns: 150, dsaSubmits: 30, aiHints: 25, codeReviews: 1, interviews: 1, interviewsMonthly: false, mockTests: 999 },
+  premium: { dsaRuns: 300, dsaSubmits: 75, aiHints: 50, codeReviews: 4, interviews: 2, interviewsMonthly: true,  mockTests: 999 },
 };
 
 export const PLAN_PRICES: Record<Exclude<PlanTier, "free">, { paise: number; inr: number; label: string }> = {
@@ -49,6 +52,7 @@ export function emptyUsage(): MonthlyUsage {
     codeReviews: 0,
     interviewsThisMonth: 0,
     interviewsLifetime: 0,
+    mockTestsThisMonth: 0,
     month: currentMonth(),
   };
 }

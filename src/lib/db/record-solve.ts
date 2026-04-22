@@ -4,6 +4,9 @@ import { recordActivity } from "./activity";
 import { calculateXP, awardXP } from "@/lib/xp/calculator";
 import { updateStreak } from "@/lib/xp/streaks";
 import { getUserSubmissionForProblem } from "./submissions";
+import { checkAndAwardBadges } from "./badges";
+import { getDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 
 interface RecordSolveParams {
   userId: string;
@@ -70,6 +73,17 @@ export async function recordSolve(params: RecordSolveParams) {
 
     // 6. Record activity for heatmap
     await recordActivity(userId, 1, xp);
+
+    // 7. Check and award badges (best-effort, non-blocking)
+    const userSnap = await getDoc(doc(db, "users", userId));
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      checkAndAwardBadges(userId, {
+        problemsSolved: (userData.totalSolved as number | undefined) ?? 0,
+        currentStreak: (userData.currentStreak as number | undefined) ?? 0,
+        xp: ((userData.xp as number | undefined) ?? 0) + xp,
+      }).catch(() => {});
+    }
 
     return { xp, isFirstSolve };
   }

@@ -7,6 +7,7 @@ const adminLinks = [
   { href: "/admin", icon: "dashboard", label: "Dashboard", exact: true },
   { href: "/admin/problems", icon: "code", label: "Problems", exact: false },
   { href: "/admin/contests", icon: "emoji_events", label: "Contests", exact: false },
+  { href: "/admin/mock-tests", icon: "quiz", label: "Mock Tests", exact: false },
   { href: "/admin/users", icon: "group", label: "Users", exact: false },
 ];
 

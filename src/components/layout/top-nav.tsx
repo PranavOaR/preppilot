@@ -10,8 +10,9 @@ const mainLinks = [
   { href: "/roadmap", icon: "map", label: "Roadmap" },
   { href: "/practice", icon: "terminal", label: "Practice" },
   { href: "/leaderboard", icon: "emoji_events", label: "Contests" },
-  { href: "/interview", icon: "record_voice_over", label: "Interview" },
   { href: "/mock-tests", icon: "quiz", label: "Mock Tests" },
+  { href: "/analytics", icon: "bar_chart", label: "Analytics" },
+  { href: "/interview", icon: "record_voice_over", label: "Interview" },
   { href: "/pricing", icon: "upgrade", label: "Pricing" },
 ];
 

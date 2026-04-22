@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedRoutes = ["/dashboard", "/roadmap", "/practice", "/leaderboard", "/settings", "/admin", "/interview", "/mock-tests", "/bookmarks"];
+const protectedRoutes = ["/dashboard", "/roadmap", "/practice", "/leaderboard", "/settings", "/admin", "/interview", "/mock-tests", "/bookmarks", "/analytics"];
 const publicRoutes = ["/login", "/register"];
 
 export function proxy(request: NextRequest) {
@@ -44,6 +44,7 @@ export const config = {
     "/interview/:path*",
     "/mock-tests/:path*",
     "/bookmarks/:path*",
+    "/analytics/:path*",
     "/login",
     "/register",
   ],

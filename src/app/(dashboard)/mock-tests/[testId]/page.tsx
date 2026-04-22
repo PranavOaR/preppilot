@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/mock-tests";
 import { getProblemById } from "@/lib/db/problems";
 import { ContestTimer } from "@/components/practice/contest-timer";
+import { checkAndIncrementUsage } from "@/lib/plans/usage";
 import type { MockTest, MockTestAttempt, Problem } from "@/lib/types";
 
 const Editor = dynamic(() => import("@monaco-editor/react").then((m) => m.default), {
@@ -60,6 +61,7 @@ export default function MockTestTakePage() {
   const [submitting, setSubmitting] = useState(false);
   const [timeUp, setTimeUp] = useState(false);
   const [endTime, setEndTime] = useState<Date | null>(null);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
   const hasAutoSubmitted = useRef(false);
 
   // Per-problem state
@@ -92,6 +94,14 @@ export default function MockTestTakePage() {
         currentAttempt = await getInProgressAttempt(testId, user.uid);
       }
       if (!currentAttempt) {
+        const quota = await checkAndIncrementUsage(user.uid, "mockTest");
+        if (!quota.allowed) {
+          setQuotaError(
+            `You've used all ${quota.limit} mock test${quota.limit === 1 ? "" : "s"} this month on the ${quota.plan} plan. Upgrade for more.`
+          );
+          setLoading(false);
+          return;
+        }
         const newId = await createAttempt(testId, user.uid);
         currentAttempt = await getAttempt(newId);
       }
@@ -169,6 +179,22 @@ export default function MockTestTakePage() {
         <span className="material-symbols-outlined text-outline text-4xl animate-spin">
           progress_activity
         </span>
+      </div>
+    );
+  }
+
+  if (quotaError) {
+    return (
+      <div className="max-w-xl mx-auto px-6 py-16 text-center space-y-4">
+        <span className="material-symbols-outlined text-[48px] text-yellow-400">lock</span>
+        <h2 className="text-on-surface text-xl font-medium">Mock Test Limit Reached</h2>
+        <p className="text-on-surface-variant text-sm">{quotaError}</p>
+        <button
+          onClick={() => router.push("/mock-tests")}
+          className="mt-2 px-5 py-2 rounded-lg text-sm font-medium gradient-primary text-on-primary hover:opacity-90"
+        >
+          Back to Mock Tests
+        </button>
       </div>
     );
   }

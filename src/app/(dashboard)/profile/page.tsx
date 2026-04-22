@@ -9,6 +9,7 @@ import { getActivityLog } from "@/lib/db/activity";
 import { Heatmap } from "@/components/profile/heatmap";
 import { ProblemsDonut } from "@/components/profile/problems-donut";
 import { RecentSubmissions } from "@/components/profile/recent-submissions";
+import { BadgeGrid } from "@/components/profile/badges";
 import type { Problem } from "@/lib/types";
 import { type PlanTier } from "@/lib/types/plans";
 import type { Timestamp } from "firebase/firestore";
@@ -429,6 +430,18 @@ export default function ProfilePage() {
         ) : (
           <Heatmap data={activity} />
         )}
+      </div>
+
+      {/* Badges */}
+      <div className="glass-panel subtle-border rounded-xl p-6">
+        <h3 className="font-serif text-on-surface text-lg font-medium mb-4 flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary-brand text-xl">workspace_premium</span>
+          Badges
+          <span className="text-on-surface-variant text-sm font-normal font-sans ml-1">
+            ({(profile.badges || []).length}/{7})
+          </span>
+        </h3>
+        <BadgeGrid earnedBadgeIds={profile.badges || []} />
       </div>
     </main>
   );
