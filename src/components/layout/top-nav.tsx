@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 const mainLinks = [
   { href: "/dashboard", icon: "home", label: "Home" },
@@ -161,6 +162,10 @@ export function TopNav() {
               </span>
             </Link>
           )}
+
+          <div className="hidden md:block">
+            <NotificationBell />
+          </div>
 
           <Link
             href="/settings"

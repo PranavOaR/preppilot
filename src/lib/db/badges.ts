@@ -1,5 +1,6 @@
 import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
+import { addNotification } from "./notifications";
 import type { Badge } from "@/lib/types";
 
 export const ALL_BADGES: Badge[] = [
@@ -104,6 +105,22 @@ export async function checkAndAwardBadges(
     await updateDoc(userRef, {
       badges: arrayUnion(...newBadgeIds),
     });
+
+    // Send a notification for each new badge (best-effort)
+    const badgeMap = new Map(ALL_BADGES.map((b) => [b.id, b]));
+    await Promise.all(
+      newBadgeIds.map((id) => {
+        const badge = badgeMap.get(id);
+        if (!badge) return Promise.resolve();
+        return addNotification(userId, {
+          type: "badge_earned",
+          title: `Badge unlocked: ${badge.name}`,
+          body: badge.description,
+          icon: badge.icon,
+          href: "/profile",
+        }).catch(() => {});
+      })
+    );
   }
 
   return newBadgeIds;
