@@ -3,7 +3,7 @@ import { GROQ_MODELS } from "./models";
 
 let _groq: Groq | null = null;
 
-function getGroq(): Groq {
+export function getGroqClient(): Groq {
   if (!_groq) {
     if (!process.env.GROQ_API_KEY) {
       throw new Error("GROQ_API_KEY is not configured in .env.local");
@@ -12,6 +12,9 @@ function getGroq(): Groq {
   }
   return _groq;
 }
+
+// Internal alias for file-local use
+const getGroq = getGroqClient;
 
 export async function generateHint(prompt: string): Promise<string> {
   const completion = await getGroq().chat.completions.create({

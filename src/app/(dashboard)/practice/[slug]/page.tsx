@@ -17,8 +17,7 @@ import { SolveCelebration } from "@/components/practice/solve-celebration";
 import type { Problem } from "@/lib/types";
 import type { TestCaseResult } from "@/lib/judge/client";
 import { PLAN_LIMITS } from "@/lib/types/plans";
-import { checkAndIncrementUsage } from "@/lib/plans/usage";
-import { getAuth } from "firebase/auth";
+import { checkAndIncrementUsage, rollbackUsage } from "@/lib/plans/usage";
 import Link from "next/link";
 
 // Dynamically import Monaco to avoid SSR issues
@@ -145,7 +144,7 @@ export default function ProblemPage() {
     setSummary(null);
 
     try {
-      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+      const idToken = await user?.getIdToken().catch(() => null);
       const res = await fetch("/api/submissions", {
         method: "POST",
         headers: {
@@ -179,6 +178,7 @@ export default function ProblemPage() {
         setSummary(data.summary);
       }
     } catch (err) {
+      if (user) rollbackUsage(user.uid, "dsaRun").catch(() => {});
       setResults([
         {
           input: "",
@@ -249,7 +249,7 @@ export default function ProblemPage() {
     setSummary(null);
 
     try {
-      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+      const idToken = await user?.getIdToken().catch(() => null);
       const res = await fetch("/api/submissions", {
         method: "POST",
         headers: {
@@ -309,6 +309,7 @@ export default function ProblemPage() {
         }
       }
     } catch (err) {
+      if (user) rollbackUsage(user.uid, "dsaSubmit").catch(() => {});
       setResults([
         {
           input: "",

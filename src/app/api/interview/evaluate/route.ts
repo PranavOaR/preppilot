@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Groq from "groq-sdk";
 import { buildEvaluationPrompt } from "@/lib/groq/interview-prompts";
+import { getGroqClient } from "@/lib/groq/client";
 import { GROQ_MODELS } from "@/lib/groq/models";
 import type { InterviewType } from "@/lib/types/interview";
 import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
-
-let _groq: Groq | null = null;
-function getGroq(): Groq {
-  if (!_groq) {
-    if (!process.env.GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY is not configured in .env.local");
-    }
-    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  }
-  return _groq;
-}
 
 export async function POST(req: NextRequest) {
   const token = extractBearerToken(req);
@@ -46,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const prompt = buildEvaluationPrompt(question, transcript, type);
 
-    const completion = await getGroq().chat.completions.create({
+    const completion = await getGroqClient().chat.completions.create({
       model: GROQ_MODELS.fast,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,

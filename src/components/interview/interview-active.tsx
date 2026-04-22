@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getAuth } from "firebase/auth";
+import { useAuth } from "@/contexts/auth-context";
 import {
   saveInterviewQA,
   completeInterviewSession,
@@ -80,6 +80,7 @@ interface InterviewActiveProps {
 
 export function InterviewActive({ sessionId, config, userId }: InterviewActiveProps) {
   const router = useRouter();
+  const { user } = useAuth();
 
   const [callStatus, setCallStatus] = useState<CallStatus>("connecting");
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
@@ -151,7 +152,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
     try {
       await Promise.all(qas.map((qa) => saveInterviewQA(sessionId, qa)));
 
-      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+      const idToken = await user?.getIdToken().catch(() => null);
       const res = await fetch("/api/interview/feedback", {
         method: "POST",
         headers: {
@@ -176,7 +177,7 @@ export function InterviewActive({ sessionId, config, userId }: InterviewActivePr
           weaknesses: fb.weaknesses ?? [],
           topicScores: fb.topicScores ?? {},
           suggestions: fb.suggestions ?? [],
-          generatedAt: null as unknown as InterviewFeedback["generatedAt"],
+          generatedAt: null,
         };
         await saveInterviewFeedback(feedbackDoc);
         await completeInterviewSession(sessionId, feedbackDoc.overallScore);

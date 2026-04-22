@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getAuth } from "firebase/auth";
 import { useAuth } from "@/contexts/auth-context";
 import { getUserUnlockedLevels, getCachedHint } from "@/lib/db/hints";
 import { PLAN_LIMITS } from "@/lib/types/plans";
@@ -52,7 +51,7 @@ export function HintPanel({ problem }: HintPanelProps) {
       let hintText = await getCachedHint(problem.id, level);
 
       if (!hintText) {
-        const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+        const idToken = await user?.getIdToken().catch(() => null);
         if (!idToken) { setError("Not authenticated."); return; }
         const res = await fetch("/api/hints", {
           method: "POST",

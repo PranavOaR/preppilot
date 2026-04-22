@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { CollegeRankings } from "@/components/leaderboard/college-rankings";
 
@@ -29,51 +27,25 @@ export default function CollegeLeaderboardPage() {
   const [colleges, setColleges] = useState<CollegeData[]>([]);
   const [individuals, setIndividuals] = useState<UserRankData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
   const [tab, setTab] = useState<Tab>("colleges");
 
   useEffect(() => {
+    if (!user) return;
     async function load() {
       try {
-        const snapshot = await getDocs(collection(db, "users"));
-        const collegeMap = new Map<string, { totalXp: number; count: number; displayName: string }>();
-        const userList: UserRankData[] = [];
-
-        snapshot.docs.forEach((doc) => {
-          const data = doc.data();
-          const university = (data.university as string)?.trim();
-          const normalizedUni = university?.toLowerCase();
-          const xp = (data.xp as number) || 0;
-
-          // Individual
-          if (data.username) {
-            userList.push({
-              uid: doc.id,
-              username: data.username as string,
-              university: university || "",
-              xp,
-              streak: (data.currentStreak as number) || 0,
-            });
-          }
-
-          // College aggregate
-          if (!university || !normalizedUni) return;
-          const existing = collegeMap.get(normalizedUni) || { totalXp: 0, count: 0, displayName: university };
-          existing.totalXp += xp;
-          existing.count += 1;
-          collegeMap.set(normalizedUni, existing);
+        const idToken = await user!.getIdToken();
+        const res = await fetch("/api/leaderboard/colleges", {
+          headers: { Authorization: `Bearer ${idToken}` },
         });
-
-        const ranked: CollegeData[] = Array.from(collegeMap.entries())
-          .map(([, { totalXp, count, displayName }]) => ({
-            university: displayName,
-            totalXp,
-            userCount: count,
-            avgXp: Math.round(totalXp / count),
-          }))
-          .sort((a, b) => b.totalXp - a.totalXp);
-
-        setColleges(ranked);
-        setIndividuals(userList.sort((a, b) => b.xp - a.xp));
+        if (res.status === 503) {
+          setUnavailable(true);
+          return;
+        }
+        if (!res.ok) throw new Error("Failed to load leaderboard");
+        const data = await res.json();
+        setColleges(data.colleges ?? []);
+        setIndividuals(data.individuals ?? []);
       } catch (err) {
         console.error("Failed to load leaderboard data:", err);
       } finally {
@@ -81,7 +53,7 @@ export default function CollegeLeaderboardPage() {
       }
     }
     load();
-  }, []);
+  }, [user]);
 
   function getRankIcon(rank: number) {
     if (rank === 1) return <span className="material-symbols-outlined text-yellow-400 text-[20px]">military_tech</span>;
@@ -134,6 +106,10 @@ export default function CollegeLeaderboardPage() {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <span className="material-symbols-outlined text-outline text-4xl animate-spin">progress_activity</span>
+        </div>
+      ) : unavailable ? (
+        <div className="rounded-lg bg-surface-container-low subtle-border p-8 text-center text-on-surface-variant text-sm">
+          Leaderboard is currently unavailable.
         </div>
       ) : tab === "colleges" ? (
         <CollegeRankings colleges={colleges} currentUserUniversity={profile?.university} />

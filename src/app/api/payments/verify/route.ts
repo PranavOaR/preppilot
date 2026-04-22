@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
 import { getAdminDb } from "@/lib/firebase/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { PLAN_PRICES, type PlanTier } from "@/lib/types/plans";
+import { PLAN_PRICES, INTERVIEW_ADDON_PRICE, type PlanTier } from "@/lib/types/plans";
 
 export async function POST(req: NextRequest) {
   try {
@@ -72,8 +72,7 @@ export async function POST(req: NextRequest) {
 
     // Interview add-on purchase
     if (type === "interview_addon") {
-      const expectedPaise = Number(process.env.INTERVIEW_ADDON_PRICE_PAISE || 0);
-      if (expectedPaise > 0 && razorpayOrder.amount !== expectedPaise) {
+      if (razorpayOrder.amount !== INTERVIEW_ADDON_PRICE.paise) {
         return NextResponse.json({ error: "Amount mismatch." }, { status: 400 });
       }
 
@@ -84,7 +83,8 @@ export async function POST(req: NextRequest) {
         });
         return NextResponse.json({ success: true, type: "interview_addon" });
       }
-      return NextResponse.json({ success: true, type: "interview_addon", userId: authUser.uid });
+      // Fallback: Admin SDK not configured — client must write the credit.
+      return NextResponse.json({ success: true, type: "interview_addon", needsClientUpdate: true, userId: authUser.uid });
     }
 
     // Plan upgrade purchase

@@ -23,9 +23,21 @@ export function useProctor(
   const onViolationRef = useRef(onViolation);
   useEffect(() => { onViolationRef.current = onViolation; });
 
+  // Persists across effect re-runs so fullscreen state isn't reset if deps change.
+  const wasFullscreenRef = useRef(false);
+
   const { user } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+
+  // Keep stable refs for showToast and router so they don't cause effect re-runs.
+  const showToastRef = useRef(showToast);
+  const routerRef = useRef(router);
+  useEffect(() => { showToastRef.current = showToast; });
+  useEffect(() => { routerRef.current = router; });
+
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; });
 
   useEffect(() => {
     if (!enabled) return;
@@ -36,26 +48,27 @@ export function useProctor(
       onViolationRef.current?.(count);
 
       if (count === 1) {
-        showToast(
+        showToastRef.current(
           `Warning: ${reason}. Two more violations will end your session.`,
           "error"
         );
       } else if (count === 2) {
-        showToast(
+        showToastRef.current(
           `Final warning: ${reason}. One more violation will permanently end your session.`,
           "error"
         );
       } else {
-        showToast("Session terminated for repeated violations.", "error");
-        if (user) {
+        showToastRef.current("Session terminated for repeated violations.", "error");
+        const currentUser = userRef.current;
+        if (currentUser) {
           try {
-            await flagUserAsUnethical(user.uid);
+            await flagUserAsUnethical(currentUser.uid);
           } catch {
             // best-effort — proceed with signout regardless
           }
         }
         await signOut(auth);
-        router.replace("/flagged");
+        routerRef.current.replace("/flagged");
       }
     };
 
@@ -65,15 +78,10 @@ export function useProctor(
       }
     };
 
-    // Track whether user has ever entered fullscreen — don't fire violations
-    // for the initial mount state where the page is not fullscreen.
-    let wasFullscreen = !!document.fullscreenElement;
-
     const onFullscreenChange = () => {
       if (document.fullscreenElement) {
-        wasFullscreen = true;
-      } else if (wasFullscreen) {
-        // Only fire if user was in fullscreen and exited
+        wasFullscreenRef.current = true;
+      } else if (wasFullscreenRef.current) {
         handleViolation("Exiting fullscreen is not allowed");
       }
     };
@@ -85,5 +93,5 @@ export function useProctor(
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
-  }, [enabled, user, showToast, router]);
+  }, [enabled]); // showToast, router, user accessed via stable refs — no re-registration needed
 }

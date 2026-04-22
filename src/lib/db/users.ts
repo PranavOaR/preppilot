@@ -6,25 +6,25 @@ export async function getUser(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, "users", uid));
   if (!snap.exists()) return null;
   const data = snap.data();
-  // Ensure required fields have sensible defaults if missing
+  // Spread data first, then apply defaults only for fields missing/falsy in Firestore.
   return {
-    username: data.username || "",
-    email: data.email || "",
-    displayName: data.displayName || "",
-    avatarUrl: data.avatarUrl ?? null,
-    targetCompany: data.targetCompany || "",
-    preferredLanguage: data.preferredLanguage || "python",
-    university: data.university || "",
-    year: data.year || 1,
-    semester: data.semester || 1,
-    role: data.role || "user",
-    xp: data.xp || 0,
-    currentStreak: data.currentStreak || 0,
-    longestStreak: data.longestStreak || 0,
-    lastPracticeDate: data.lastPracticeDate ?? null,
-    badges: data.badges || [],
-    createdAt: data.createdAt ?? null,
-    updatedAt: data.updatedAt ?? null,
+    username: "",
+    email: "",
+    displayName: "",
+    avatarUrl: null,
+    targetCompany: "",
+    preferredLanguage: "python",
+    university: "",
+    year: 1,
+    semester: 1,
+    role: "user",
+    xp: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    lastPracticeDate: null,
+    badges: [],
+    createdAt: null,
+    updatedAt: null,
     ...data,
   } as UserProfile;
 }

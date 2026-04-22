@@ -89,9 +89,11 @@ service cloud.firestore {
     }
 
     // ─── Hint Cache (global cache, read by all signed-in users) ───
+    // Writes must go through the hints API route (which uses Admin SDK) or an admin.
+    // Direct client writes are blocked to prevent cache poisoning.
     match /hintCache/{hintId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn(); // Written by hint API route (server-side, no auth context) or admins
+      allow write: if isAdmin();
     }
 
     // ─── Hint Usage ───

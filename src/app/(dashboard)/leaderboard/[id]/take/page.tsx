@@ -14,7 +14,6 @@ import {
 import { useContestRealtime } from "@/hooks/use-contest-realtime";
 import { useContestStatus, computeContestStatus } from "@/hooks/use-contest-status";
 import { ContestTimer } from "@/components/practice/contest-timer";
-import { getAuth } from "firebase/auth";
 import type { Problem } from "@/lib/types";
 
 const Editor = dynamic(() => import("@monaco-editor/react").then((m) => m.default), {
@@ -106,7 +105,7 @@ export default function ContestTakePage() {
         return;
       }
 
-      // Check contest is active — use synchronous compute to avoid null race
+      // Check contest is active at load time — use synchronous compute
       if (computeContestStatus(contest) !== "active") {
         router.replace(`/leaderboard/${contestId}`);
         return;
@@ -124,7 +123,7 @@ export default function ContestTakePage() {
       const submitted = new Set<string>();
       const correct = new Set<string>();
       for (const sub of existingSubs) {
-        const s = sub as any;
+        const s = sub as unknown as { problemId: string; isCorrect?: boolean };
         submitted.add(s.problemId);
         if (s.isCorrect) correct.add(s.problemId);
       }
@@ -135,13 +134,20 @@ export default function ContestTakePage() {
     } finally {
       setProblemsLoading(false);
     }
-  }, [contestId, user, contest, computedStatus, router]);
+  }, [contestId, user, contest, router]); // computedStatus intentionally excluded — redirect handled separately
 
   useEffect(() => {
     if (contest && !contestLoading) {
       loadData();
     }
   }, [contest, contestLoading, loadData]);
+
+  // Redirect when contest ends mid-session
+  useEffect(() => {
+    if (computedStatus === "completed") {
+      router.replace(`/leaderboard/${contestId}`);
+    }
+  }, [computedStatus, contestId, router]);
 
   // Reset state when switching problems
   useEffect(() => {
@@ -165,7 +171,7 @@ export default function ContestTakePage() {
     setRunResults(null);
     setRunSummary(null);
     try {
-      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+      const idToken = await user?.getIdToken().catch(() => null);
       const res = await fetch("/api/submissions", {
         method: "POST",
         headers: {
@@ -216,7 +222,7 @@ export default function ContestTakePage() {
         // burning the user's monthly submit quota for contest practice.
         answer = code;
         try {
-          const idToken2 = await getAuth().currentUser?.getIdToken().catch(() => null);
+          const idToken2 = await user?.getIdToken().catch(() => null);
           const res = await fetch("/api/submissions", {
             method: "POST",
             headers: {

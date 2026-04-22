@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let data: any;
+    let data: { transcript?: string; text?: string };
     try {
-      data = JSON.parse(responseText);
+      data = JSON.parse(responseText) as { transcript?: string; text?: string };
     } catch {
       console.error("[STT] Sarvam returned non-JSON:", responseText.slice(0, 200));
       return NextResponse.json({ error: "Invalid response from Sarvam." }, { status: 500 });

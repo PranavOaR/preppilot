@@ -121,16 +121,23 @@ export async function rollbackUsage(userId: string, action: UsageAction): Promis
     if (!snap.exists()) return;
 
     const data = snap.data();
+    const plan = effectivePlan(data.plan, data.planExpiresAt);
+    const limits = PLAN_LIMITS[plan];
     const usage = freshUsage(data.usageThisMonth as MonthlyUsage | undefined);
 
-    const fieldMap: Record<UsageAction, keyof MonthlyUsage> = {
-      dsaRun: "dsaRuns",
-      dsaSubmit: "dsaSubmits",
-      aiHint: "aiHints",
-      codeReview: "codeReviews",
-      interview: "interviewsThisMonth",
-    };
-    const field = fieldMap[action];
+    let field: keyof MonthlyUsage;
+    if (action === "interview") {
+      field = limits.interviewsMonthly ? "interviewsThisMonth" : "interviewsLifetime";
+    } else {
+      const fieldMap: Record<Exclude<UsageAction, "interview">, keyof MonthlyUsage> = {
+        dsaRun: "dsaRuns",
+        dsaSubmit: "dsaSubmits",
+        aiHint: "aiHints",
+        codeReview: "codeReviews",
+      };
+      field = fieldMap[action as Exclude<UsageAction, "interview">];
+    }
+
     const current = (usage[field] as number) || 0;
     if (current <= 0) return;
 

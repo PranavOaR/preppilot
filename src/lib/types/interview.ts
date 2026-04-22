@@ -70,5 +70,5 @@ export interface InterviewFeedback {
   weaknesses: string[];
   topicScores: Record<string, number>;
   suggestions: string[];
-  generatedAt: Timestamp;
+  generatedAt: Timestamp | null;
 }

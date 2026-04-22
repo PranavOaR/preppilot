@@ -158,11 +158,11 @@ export default function NewInterviewPage() {
               return;
             }
 
-            await Promise.all([
-              updateDoc(doc(db, "users", user.uid), {
-                purchasedInterviews: increment(1),
-                updatedAt: serverTimestamp(),
-              }),
+            const verifyData = await verifyRes.json();
+
+            // Only write credits client-side when Admin SDK is not configured
+            // (server returns needsClientUpdate:true in that fallback path).
+            const writes: Promise<unknown>[] = [
               setDoc(doc(db, "payments", response.razorpay_payment_id), {
                 userId: user.uid,
                 type: "interview_addon",
@@ -171,7 +171,16 @@ export default function NewInterviewPage() {
                 paymentId: response.razorpay_payment_id,
                 paidAt: serverTimestamp(),
               }),
-            ]);
+            ];
+            if (verifyData.needsClientUpdate) {
+              writes.push(
+                updateDoc(doc(db, "users", user.uid), {
+                  purchasedInterviews: increment(1),
+                  updatedAt: serverTimestamp(),
+                })
+              );
+            }
+            await Promise.all(writes);
 
             showToast("Interview credit added! Starting setup...", "success");
             await checkQuota();

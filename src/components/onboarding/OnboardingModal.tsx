@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -16,6 +17,7 @@ const STEPS = ["Pick Your Target", "Solve Your First Problem", "Your Roadmap"];
 
 export function OnboardingModal() {
   const { user, profile, refreshProfile } = useAuth();
+  const router = useRouter();
   const [step, setStep] = useState(0);
   const [company, setCompany] = useState(profile?.targetCompany || "");
   const [saving, setSaving] = useState(false);
@@ -189,13 +191,13 @@ export function OnboardingModal() {
               </div>
 
               <div className="flex gap-3">
-                <Link
-                  href="/roadmap"
-                  onClick={handleComplete}
-                  className="flex-1 py-3 rounded-xl gradient-primary text-on-primary text-sm font-medium text-center hover:opacity-90 transition-opacity"
+                <button
+                  onClick={async () => { await handleComplete(); router.push("/roadmap"); }}
+                  disabled={saving}
+                  className="flex-1 py-3 rounded-xl gradient-primary text-on-primary text-sm font-medium text-center hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   View My Roadmap →
-                </Link>
+                </button>
                 <button
                   onClick={handleComplete}
                   disabled={saving}

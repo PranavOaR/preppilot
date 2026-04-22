@@ -103,7 +103,7 @@ export async function getTopics(): Promise<string[]> {
 }
 
 export async function getProblemCount(filters: { type?: string; difficulty?: string } = {}): Promise<number> {
-  const constraints: QueryConstraint[] = [];
+  const constraints: QueryConstraint[] = [where("status", "==", "published")];
   if (filters.type) constraints.push(where("type", "==", filters.type));
   if (filters.difficulty) constraints.push(where("difficulty", "==", filters.difficulty));
 

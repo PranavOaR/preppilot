@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getAuth } from "firebase/auth";
 import { useAuth } from "@/contexts/auth-context";
 import {
   getInterviewSession,
@@ -59,7 +58,7 @@ export default function InterviewFeedbackPage() {
     setError(false);
     try {
       const qas = await getInterviewQAs(sessionId);
-      const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+      const idToken = await user?.getIdToken().catch(() => null);
       const res = await fetch("/api/interview/feedback", {
         method: "POST",
         headers: {

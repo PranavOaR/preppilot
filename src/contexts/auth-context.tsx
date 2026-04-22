@@ -73,6 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function handleSignUp(email: string, password: string) {
     const credential = await signUp(email, password);
+    profileLoadedBySignIn.current = true;
+    await loadProfile(credential.user);
     return credential.user;
   }
 

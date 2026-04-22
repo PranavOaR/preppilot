@@ -58,11 +58,16 @@ export async function completeInterviewSession(
 export async function getUserInterviews(userId: string): Promise<InterviewSession[]> {
   const q = query(
     collection(db, "interviewSessions"),
-    where("userId", "==", userId),
-    orderBy("startedAt", "desc")
+    where("userId", "==", userId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as InterviewSession));
+  const sessions = snap.docs.map((d) => ({ id: d.id, ...d.data() } as InterviewSession));
+  // Sort client-side to avoid requiring a composite Firestore index
+  return sessions.sort((a, b) => {
+    const aTs = (a.startedAt as { seconds?: number } | null)?.seconds ?? 0;
+    const bTs = (b.startedAt as { seconds?: number } | null)?.seconds ?? 0;
+    return bTs - aTs;
+  });
 }
 
 // ─── Questions (subcollection) ───

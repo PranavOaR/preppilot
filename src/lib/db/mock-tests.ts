@@ -109,8 +109,8 @@ export async function submitAttempt(
           totalCorrect++;
         }
       } else if (section.type === "dsa") {
-        sectionCorrect++;
-        totalCorrect++;
+        // DSA answers are graded as attempted-only (no Judge0 execution in mock tests).
+        // Count toward denominator but not toward correct — score reflects aptitude only.
       }
     }
     const denominator = section.problemIds.length;

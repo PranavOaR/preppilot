@@ -11,9 +11,8 @@ import { ProblemsDonut } from "@/components/profile/problems-donut";
 import { RecentSubmissions } from "@/components/profile/recent-submissions";
 import type { Problem } from "@/lib/types";
 import { type PlanTier } from "@/lib/types/plans";
+import type { Timestamp } from "firebase/firestore";
 import Link from "next/link";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
 
 const PLAN_BADGE: Record<PlanTier, { label: string; className: string }> = {
   free:    { label: "FREE",    className: "bg-surface-container-high text-on-surface-variant" },
@@ -27,7 +26,7 @@ interface SubmissionData {
   problemSlug: string;
   status: string;
   language: string;
-  submittedAt: any;
+  submittedAt: Timestamp | { seconds: number } | string | null;
 }
 
 interface ActivityData {
@@ -125,22 +124,18 @@ export default function ProfilePage() {
           medium: allProblems.filter((p) => p.difficulty === "medium").length,
           hard: allProblems.filter((p) => p.difficulty === "hard").length,
         });
-        // Compute global + college rank
+        // Compute global + college rank via server-side API
         try {
-          const snap = await getDocs(collection(db, "users"));
-          const allUsers = snap.docs.map(d => ({ uid: d.id, xp: (d.data().xp as number) || 0, university: (d.data().university as string)?.trim()?.toLowerCase() || "" }));
-          allUsers.sort((a, b) => b.xp - a.xp);
-          const myXP = profile?.xp ?? 0;
-          const grank = allUsers.findIndex(u => u.uid === user!.uid) + 1;
-          setGlobalRank(grank || null);
-          setTotalUsers(allUsers.length);
-          const uni = profile?.university?.trim();
-          const uniNorm = uni?.toLowerCase();
-          if (uni && uniNorm) {
-            const sameCollege = allUsers.filter(u => u.university.toLowerCase() === uniNorm);
-            const crank = sameCollege.findIndex(u => u.uid === user!.uid) + 1;
-            setCollegeRank(crank || null);
-            setCollegeUsers(sameCollege.length);
+          const idToken = await user!.getIdToken();
+          const rankRes = await fetch("/api/user/rank", {
+            headers: { Authorization: `Bearer ${idToken}` },
+          });
+          if (rankRes.ok) {
+            const rankData = await rankRes.json();
+            setGlobalRank(rankData.globalRank);
+            setTotalUsers(rankData.totalUsers ?? 0);
+            setCollegeRank(rankData.collegeRank);
+            setCollegeUsers(rankData.collegeUsers ?? 0);
           }
         } catch { /* ranking is non-critical */ }
         try {

@@ -1,27 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import type { Timestamp } from "firebase/firestore";
+
+type FirestoreTimestamp = Timestamp | { toDate?: () => Date; seconds?: number } | string | null;
 
 interface SubmissionItem {
   problemTitle: string;
   problemSlug: string;
   status: string;
   language: string;
-  submittedAt: any;
+  submittedAt: FirestoreTimestamp;
 }
 
 interface RecentSubmissionsProps {
   submissions: SubmissionItem[];
 }
 
-function formatRelativeTime(timestamp: any): string {
+function formatRelativeTime(timestamp: FirestoreTimestamp): string {
   let date: Date;
-  if (timestamp?.toDate) {
+  if (timestamp && typeof timestamp === "object" && "toDate" in timestamp && typeof timestamp.toDate === "function") {
     date = timestamp.toDate();
-  } else if (timestamp?.seconds) {
+  } else if (timestamp && typeof timestamp === "object" && "seconds" in timestamp && typeof timestamp.seconds === "number") {
     date = new Date(timestamp.seconds * 1000);
   } else {
-    date = new Date(timestamp);
+    date = new Date(timestamp as string);
   }
 
   const now = new Date();

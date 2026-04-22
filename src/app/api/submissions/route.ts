@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { runAgainstTestCases } from "@/lib/judge/client";
 import { LANGUAGE_IDS } from "@/lib/judge/languages";
 import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
+import { getAdminDb } from "@/lib/firebase/server";
+import { FieldValue } from "firebase-admin/firestore";
+import { PLAN_LIMITS, currentMonth, emptyUsage, type PlanTier, type MonthlyUsage } from "@/lib/types/plans";
 
 /**
  * Comprehensive C++ auto-wrapper for LeetCode-style Solution classes.
@@ -715,6 +718,49 @@ public static void main(String[]args){Scanner sc=new Scanner(System.in);Solution
 }`;
 }
 
+/**
+ * Server-side quota check using Admin SDK.
+ * Returns false (quota exceeded) or true (allowed + counter incremented).
+ * No-ops (returns true) when Admin SDK is not configured.
+ */
+async function serverCheckQuota(userId: string, action: "dsaRun" | "dsaSubmit"): Promise<boolean> {
+  const db = getAdminDb();
+  if (!db) return true; // Admin SDK not configured — fall through
+
+  const userRef = db.collection("users").doc(userId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) return true; // new user — allow
+
+    const data = snap.data()!;
+    const plan: PlanTier = (() => {
+      const p = data.plan as PlanTier | undefined;
+      if (!p || p === "free") return "free";
+      if (data.planExpiresAt && Date.now() > (data.planExpiresAt as number)) return "free";
+      return p;
+    })();
+    const limits = PLAN_LIMITS[plan];
+
+    const stored = data.usageThisMonth as MonthlyUsage | undefined;
+    const month = currentMonth();
+    const usage: MonthlyUsage =
+      stored && stored.month === month
+        ? stored
+        : { ...emptyUsage(), interviewsLifetime: stored?.interviewsLifetime ?? 0, month };
+
+    const field = action === "dsaRun" ? "dsaRuns" : "dsaSubmits";
+    const limit = limits[field];
+    const current = (usage[field] as number) || 0;
+
+    if (current >= limit) return false;
+
+    tx.update(userRef, {
+      usageThisMonth: { ...usage, [field]: current + 1 },
+    });
+    return true;
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Authenticate the caller
@@ -734,6 +780,13 @@ export async function POST(request: NextRequest) {
       testCases: { input: string; expectedOutput: string; isHidden: boolean }[];
       mode: "run" | "submit";
     };
+
+    // Server-side quota enforcement (when Admin SDK is configured)
+    const quotaAction = mode === "run" ? "dsaRun" : "dsaSubmit";
+    const allowed = await serverCheckQuota(authUser.uid, quotaAction);
+    if (!allowed) {
+      return Response.json({ error: "Quota exceeded. Upgrade your plan for more." }, { status: 429 });
+    }
 
     if (!code || !language || !testCases) {
       return Response.json({ error: "Missing required fields" }, { status: 400 });
