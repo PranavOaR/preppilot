@@ -95,12 +95,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function handleSignIn(email: string, password: string) {
     const credential = await signIn(email, password);
     profileLoadedBySignIn.current = true;
+    const idToken = await credential.user.getIdToken();
+    await syncSessionCookie(idToken);
     await loadProfile(credential.user);
   }
 
   async function handleSignUp(email: string, password: string) {
     const credential = await signUp(email, password);
     profileLoadedBySignIn.current = true;
+    const idToken = await credential.user.getIdToken();
+    await syncSessionCookie(idToken);
     await loadProfile(credential.user);
     return credential.user;
   }
@@ -108,13 +112,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function handleSignInWithGoogle() {
     const credential = await signInWithGoogle();
     profileLoadedBySignIn.current = true;
+    const idToken = await credential.user.getIdToken();
+    await syncSessionCookie(idToken);
     await loadProfile(credential.user);
   }
 
   async function handleSignOut() {
     await signOut();
     setProfile(null);
-    // Cookie is cleared by the onIdTokenChanged(null) callback above.
+    await syncSessionCookie(null); // explicitly clear instead of relying on callback
   }
 
   async function refreshProfile() {

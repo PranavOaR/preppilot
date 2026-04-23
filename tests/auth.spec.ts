@@ -10,8 +10,13 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe("Login page", () => {
   test.skip("redirects authenticated users away from /login", async ({ page }) => {
-    // Requires loading saved auth state into a fresh context —
-    // covered by e2e tests that use the global storageState fixture.
+    // Cannot be implemented here: Firebase Auth persists sessions in IndexedDB,
+    // not in cookies/localStorage, so storageState cannot carry auth across
+    // contexts. The authenticated `page` fixture in fixtures.ts signs in once
+    // per worker via a shared BrowserContext — to test this redirect, create a
+    // spec that imports from "./fixtures" and navigates to /login while
+    // already signed in. This file intentionally uses a fresh (unauthenticated)
+    // context, so the test is left skipped.
     void page;
   });
 

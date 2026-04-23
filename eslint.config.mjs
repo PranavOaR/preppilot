@@ -16,6 +16,11 @@ const eslintConfig = defineConfig([
     ".firebase/**",
     "judge0-gcp/**",
     "scripts/**",
+    // Test artifacts — may not exist; ESLint should not attempt to traverse them
+    "test-results/**",
+    "playwright-report/**",
+    // Claude Code worktrees — separate git trees, not part of this project
+    ".claude/worktrees/**",
   ]),
 ]);
 

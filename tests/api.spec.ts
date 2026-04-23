@@ -52,11 +52,17 @@ test.describe("API auth guards", () => {
     expect(res.status()).toBe(401);
   });
 
-  test("POST /api/auth/session rejects missing body", async ({ request }) => {
+  test("POST /api/auth/session returns 400 for missing idToken", async ({ request }) => {
     const res = await request.post("/api/auth/session", {
       data: {},
     });
-    // No idToken → invalid token → 401
+    expect(res.status()).toBe(400);
+  });
+
+  test("POST /api/auth/session returns 401 for invalid idToken", async ({ request }) => {
+    const res = await request.post("/api/auth/session", {
+      data: { idToken: "not-a-real-token" },
+    });
     expect(res.status()).toBe(401);
   });
 

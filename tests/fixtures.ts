@@ -39,9 +39,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   ],
 
   // Override the default `page` to come from the shared authenticated context.
+  // `use` here is Playwright's fixture `use` callback, not a React hook.
   page: async ({ sharedAuthContext }, use) => {
     const page = await sharedAuthContext.newPage();
-    await use(page);
+    await use(page); // eslint-disable-line react-hooks/rules-of-hooks
     await page.close();
   },
 });

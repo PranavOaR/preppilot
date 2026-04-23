@@ -27,9 +27,7 @@ export interface AdminStats {
     email: string;
     university: string;
     xp: number;
-    plan: PlanTier;
     isUnethical?: boolean;
-    role: string;
   }[];
 }
 
@@ -53,10 +51,11 @@ export async function GET(req: NextRequest) {
 
   const thisMonth = new Date().toISOString().slice(0, 7);
 
-  const [problemsSnap, contestsSnap, submissionsSnap, paymentsSnap, usersSnap] =
+  const [problemsSnap, contestsSnap, submissionsCountSnap, submissionsSnap, paymentsSnap, usersSnap] =
     await Promise.all([
       db.collection("problems").count().get(),
       db.collection("contests").count().get(),
+      db.collection("submissions").count().get(),
       db.collection("submissions").orderBy("submittedAt", "desc").limit(10).get(),
       db.collection("payments").get(),
       db.collection("users").get(),
@@ -75,9 +74,7 @@ export async function GET(req: NextRequest) {
       email: (data.email as string) || "",
       university: (data.university as string) || "",
       xp: (data.xp as number) || 0,
-      plan,
       isUnethical: (data.isUnethical as boolean) || false,
-      role: (data.role as string) || "user",
     };
   });
 
@@ -107,7 +104,7 @@ export async function GET(req: NextRequest) {
     totalUsers: usersSnap.size,
     totalProblems: problemsSnap.data().count,
     totalContests: contestsSnap.data().count,
-    totalSubmissions: recentSubmissions.length, // full count would need separate query
+    totalSubmissions: submissionsCountSnap.data().count,
     flaggedUsers,
     planCounts,
     totalRevenueInr,
@@ -116,5 +113,7 @@ export async function GET(req: NextRequest) {
     users,
   };
 
-  return NextResponse.json(stats);
+  const res = NextResponse.json(stats);
+  res.headers.set("Cache-Control", "no-store");
+  return res;
 }

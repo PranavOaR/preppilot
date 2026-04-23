@@ -41,7 +41,12 @@ async function getPublicKeys(): Promise<Record<string, CryptoKey>> {
   }
 
   const res = await fetch(GOOGLE_JWK_URL);
-  if (!res.ok) throw new Error("Failed to fetch Google public keys");
+  if (!res.ok) {
+    // Serve stale keys on transient failure rather than throwing — avoids
+    // mass-logout if googleapis.com is briefly unavailable.
+    if (Object.keys(cachedKeys).length > 0) return cachedKeys;
+    throw new Error("Failed to fetch Google public keys");
+  }
 
   // Cache based on Cache-Control max-age
   const cc = res.headers.get("cache-control") || "";

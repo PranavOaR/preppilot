@@ -85,31 +85,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Payment not completed." }, { status: 400 });
     }
 
-    // Idempotency: check if this paymentId was already processed
-    const existingPayment = await db.collection("payments").doc(paymentId).get();
-    if (existingPayment.exists) {
-      // Already processed — return success without re-applying
-      return NextResponse.json({ success: true, idempotent: true });
-    }
-
     // ── Interview add-on purchase ──
     if (type === "interview_addon") {
       if (razorpayOrder.amount !== INTERVIEW_ADDON_PRICE.paise) {
         return NextResponse.json({ error: "Amount mismatch." }, { status: 400 });
       }
 
-      await db.collection("users").doc(authUser.uid).update({
-        purchasedInterviews: FieldValue.increment(1),
-        updatedAt: FieldValue.serverTimestamp(),
+      const paymentRef = db.collection("payments").doc(paymentId);
+      const userRef = db.collection("users").doc(authUser.uid);
+      let alreadyProcessed = false;
+
+      await db.runTransaction(async (t) => {
+        const existing = await t.get(paymentRef);
+        if (existing.exists) { alreadyProcessed = true; return; }
+        t.create(paymentRef, {
+          userId: authUser.uid,
+          type: "interview_addon",
+          amountInr: INTERVIEW_ADDON_PRICE.inr,
+          orderId,
+          paymentId,
+          paidAt: FieldValue.serverTimestamp(),
+        });
+        t.update(userRef, {
+          purchasedInterviews: FieldValue.increment(1),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
       });
-      await db.collection("payments").doc(paymentId).set({
-        userId: authUser.uid,
-        type: "interview_addon",
-        amountInr: INTERVIEW_ADDON_PRICE.inr,
-        orderId,
-        paymentId,
-        paidAt: FieldValue.serverTimestamp(),
-      });
+
+      if (alreadyProcessed) return NextResponse.json({ success: true, idempotent: true });
       return NextResponse.json({ success: true, type: "interview_addon" });
     }
 
@@ -124,22 +127,30 @@ export async function POST(req: NextRequest) {
     }
 
     const planExpiresAt = Date.now() + 365 * 24 * 60 * 60 * 1000;
+    const paymentRef = db.collection("payments").doc(paymentId);
+    const userRef = db.collection("users").doc(authUser.uid);
+    let alreadyProcessed = false;
 
-    await db.collection("users").doc(authUser.uid).update({
-      plan,
-      planExpiresAt,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    await db.collection("payments").doc(paymentId).set({
-      userId: authUser.uid,
-      plan,
-      amountInr: PLAN_PRICES[plan].inr,
-      orderId,
-      paymentId,
-      planExpiresAt,
-      paidAt: FieldValue.serverTimestamp(),
+    await db.runTransaction(async (t) => {
+      const existing = await t.get(paymentRef);
+      if (existing.exists) { alreadyProcessed = true; return; }
+      t.create(paymentRef, {
+        userId: authUser.uid,
+        plan,
+        amountInr: PLAN_PRICES[plan].inr,
+        orderId,
+        paymentId,
+        planExpiresAt,
+        paidAt: FieldValue.serverTimestamp(),
+      });
+      t.update(userRef, {
+        plan,
+        planExpiresAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     });
 
+    if (alreadyProcessed) return NextResponse.json({ success: true, idempotent: true });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Payment verify error:", err);
