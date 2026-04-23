@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { SocialButton } from "./social-button";
 import { useAuth } from "@/contexts/auth-context";
@@ -24,7 +23,8 @@ export function LoginForm() {
 
     try {
       await signIn(email, password);
-      document.cookie = "__session=1; path=/; max-age=2592000";
+      // Session cookie is set server-side by the onIdTokenChanged callback in
+      // AuthProvider → syncSessionCookie().  No client-side cookie write needed.
       router.push("/dashboard");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Sign in failed";
@@ -43,7 +43,6 @@ export function LoginForm() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      document.cookie = "__session=1; path=/; max-age=2592000";
       router.push("/dashboard");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Google sign in failed";
@@ -116,27 +115,13 @@ export function LoginForm() {
               autoComplete="current-password"
               className="h-11 bg-surface-container-highest border-0 text-on-surface placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary-brand/40 pr-16"
             />
-            <a
-              href="#"
+            <Link
+              href="/forgot-password"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-brand text-xs hover:underline"
             >
               Forgot?
-            </a>
+            </Link>
           </div>
-        </div>
-
-        {/* Remember Session */}
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="remember"
-            className="border-outline-variant data-[state=checked]:bg-primary-container data-[state=checked]:border-primary-container"
-          />
-          <Label
-            htmlFor="remember"
-            className="text-on-surface-variant text-sm cursor-pointer"
-          >
-            Remember session for 30 days
-          </Label>
         </div>
 
         {/* Submit */}
@@ -152,9 +137,9 @@ export function LoginForm() {
       {/* Register Link */}
       <p className="text-center text-on-surface-variant text-sm">
         New to the workspace?{" "}
-        <a href="/register" className="text-primary-brand hover:underline">
+        <Link href="/register" className="text-primary-brand hover:underline">
           Create an account
-        </a>
+        </Link>
       </p>
     </div>
   );

@@ -9,9 +9,10 @@ import { test, expect } from "@playwright/test";
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe("Login page", () => {
-  test("redirects authenticated users away from /login", async ({ page }) => {
-    // Load the saved auth state manually for this one test
-    // (other tests in this file use fresh context intentionally)
+  test.skip("redirects authenticated users away from /login", async ({ page }) => {
+    // Requires loading saved auth state into a fresh context —
+    // covered by e2e tests that use the global storageState fixture.
+    void page;
   });
 
   test("shows login form with email and password fields", async ({ page }) => {

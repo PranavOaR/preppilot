@@ -1,3 +1,6 @@
+// Uses the Firebase client SDK intentionally — this module is called from
+// Next.js API routes (Node.js runtime, not Edge) where the client SDK works
+// fine. Do NOT import this in Edge-runtime code (proxy.ts or middleware).
 import { doc, getDoc, runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import {

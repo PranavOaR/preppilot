@@ -28,6 +28,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
+    // Require Admin SDK — plan activation cannot be delegated to the client.
+    const db = getAdminDb();
+    if (!db) {
+      console.error(
+        "[payments/verify] FIREBASE_SERVICE_ACCOUNT_JSON is not configured. " +
+          "Set this env var to enable server-side plan activation."
+      );
+      return NextResponse.json(
+        {
+          error:
+            "Payment received but plan activation is unavailable. " +
+            "Please contact support with your payment ID: " + paymentId,
+        },
+        { status: 503 }
+      );
+    }
+
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keySecret || !keyId) {
@@ -62,32 +79,41 @@ export async function POST(req: NextRequest) {
     if (!orderRes.ok) {
       return NextResponse.json({ error: "Could not verify payment order." }, { status: 502 });
     }
-    const razorpayOrder = await orderRes.json() as { amount: number; status: string };
+    const razorpayOrder = (await orderRes.json()) as { amount: number; status: string };
 
     if (razorpayOrder.status !== "paid") {
       return NextResponse.json({ error: "Payment not completed." }, { status: 400 });
     }
 
-    const db = getAdminDb();
+    // Idempotency: check if this paymentId was already processed
+    const existingPayment = await db.collection("payments").doc(paymentId).get();
+    if (existingPayment.exists) {
+      // Already processed — return success without re-applying
+      return NextResponse.json({ success: true, idempotent: true });
+    }
 
-    // Interview add-on purchase
+    // ── Interview add-on purchase ──
     if (type === "interview_addon") {
       if (razorpayOrder.amount !== INTERVIEW_ADDON_PRICE.paise) {
         return NextResponse.json({ error: "Amount mismatch." }, { status: 400 });
       }
 
-      if (db) {
-        await db.collection("users").doc(authUser.uid).update({
-          purchasedInterviews: FieldValue.increment(1),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        return NextResponse.json({ success: true, type: "interview_addon" });
-      }
-      // Fallback: Admin SDK not configured — client must write the credit.
-      return NextResponse.json({ success: true, type: "interview_addon", needsClientUpdate: true, userId: authUser.uid });
+      await db.collection("users").doc(authUser.uid).update({
+        purchasedInterviews: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      await db.collection("payments").doc(paymentId).set({
+        userId: authUser.uid,
+        type: "interview_addon",
+        amountInr: INTERVIEW_ADDON_PRICE.inr,
+        orderId,
+        paymentId,
+        paidAt: FieldValue.serverTimestamp(),
+      });
+      return NextResponse.json({ success: true, type: "interview_addon" });
     }
 
-    // Plan upgrade purchase
+    // ── Plan upgrade purchase ──
     if (!plan || !(plan in PLAN_PRICES)) {
       return NextResponse.json({ error: "Missing or invalid plan." }, { status: 400 });
     }
@@ -99,29 +125,22 @@ export async function POST(req: NextRequest) {
 
     const planExpiresAt = Date.now() + 365 * 24 * 60 * 60 * 1000;
 
-    if (db) {
-      // Server-side write — bypasses Firestore client rules
-      await db.collection("users").doc(authUser.uid).update({
-        plan,
-        planExpiresAt,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      // Record payment server-side
-      await db.collection("payments").doc(paymentId).set({
-        userId: authUser.uid,
-        plan,
-        amountInr: PLAN_PRICES[plan].inr,
-        orderId,
-        paymentId,
-        planExpiresAt,
-        paidAt: FieldValue.serverTimestamp(),
-      });
-      return NextResponse.json({ success: true });
-    }
+    await db.collection("users").doc(authUser.uid).update({
+      plan,
+      planExpiresAt,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await db.collection("payments").doc(paymentId).set({
+      userId: authUser.uid,
+      plan,
+      amountInr: PLAN_PRICES[plan].inr,
+      orderId,
+      paymentId,
+      planExpiresAt,
+      paidAt: FieldValue.serverTimestamp(),
+    });
 
-    // Fallback when Admin SDK is not configured: return data for client to write.
-    // Set FIREBASE_SERVICE_ACCOUNT_JSON to enable fully server-side activation.
-    return NextResponse.json({ success: true, plan, planExpiresAt, userId: authUser.uid });
+    return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Payment verify error:", err);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });

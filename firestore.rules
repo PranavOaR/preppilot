@@ -31,10 +31,12 @@ service cloud.firestore {
 
     // ─── Users ───
     match /users/{userId} {
-      // Owner and admins get full document; others get only public fields
+      // Owner and admins get full document reads.
       allow get: if isOwner(userId) || isAdmin();
-      // Lean on client-side field selection for list queries (leaderboard, college rankings)
-      allow list: if isSignedIn();
+      // List queries (e.g. getAllUsers in admin dashboard) are admin-only.
+      // Leaderboard reads go through the server-side /api/user/rank API that
+      // uses the Admin SDK and strips sensitive fields before returning data.
+      allow list: if isAdmin();
       allow create: if isOwner(userId);
       // Owner may update profile/game fields but NOT role, plan, planExpiresAt, purchasedInterviews.
       allow update: if (isOwner(userId) && !touchesSensitiveFields()) || isAdmin();

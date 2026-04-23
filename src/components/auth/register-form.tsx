@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -101,7 +102,6 @@ export function RegisterForm() {
         semester: form.semester,
       });
 
-      document.cookie = "__session=1; path=/; max-age=2592000";
       router.push("/dashboard");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
@@ -120,7 +120,6 @@ export function RegisterForm() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      document.cookie = "__session=1; path=/; max-age=2592000";
       router.push("/dashboard");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Google sign in failed";
@@ -341,9 +340,9 @@ export function RegisterForm() {
 
       <p className="text-center text-on-surface-variant text-sm">
         Already have an account?{" "}
-        <a href="/login" className="text-primary-brand hover:underline">
+        <Link href="/login" className="text-primary-brand hover:underline">
           Sign in
-        </a>
+        </Link>
       </p>
     </div>
   );

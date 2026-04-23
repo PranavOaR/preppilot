@@ -20,10 +20,11 @@ PrepPilot is a technical interview preparation platform targeting Indian IT comp
 
 ## Architecture Decisions
 
-- **No Firebase Admin SDK** — everything uses client SDK (`firebase/auth`, `firebase/firestore`)
-- **Cookie-based session** — `__session` cookie for proxy route protection (Edge runtime can't use Firebase Admin)
+- **Firebase Admin SDK** — optional, enabled via `FIREBASE_SERVICE_ACCOUNT_JSON` env var. Required for server-side plan activation (payments) and admin stats API. `src/lib/firebase/server.ts` exports `getAdminDb()` which returns `null` when not configured.
+- **Cookie-based session** — `__session` httpOnly cookie stores a Firebase ID token. Set server-side via `POST /api/auth/session`, verified cryptographically in `proxy.ts` using JWK-based `verifyIdToken`. `onIdTokenChanged` in auth-context keeps it refreshed every ~hour.
 - **Client-side Firestore filtering** — fetch all docs, filter in memory to avoid composite index requirements (viable for <200 problems)
 - **Sequential Judge0 submissions** — one test case at a time with `wait=true` to keep it simple
+- **`src/lib/plans/usage.ts`** — uses Firebase client SDK (`db`) intentionally. Called from Node.js API routes, not Edge runtime, so this is safe.
 
 ## Project Structure
 
@@ -169,14 +170,12 @@ scripts/
 - [x] `HintPanel` component with expandable hint cards
 - [x] Integrated into DSA problem page (left panel) and aptitude problem page (before options)
 
-### Phase 11: Mock Interview (Sarvam AI + Groq)
-- [x] Sarvam AI client (`src/lib/sarvam/client.ts`) — TTS and STT via REST API
-- [x] Voice config with 9 Indian languages + 2 speakers
+### Phase 11: Mock Interview (Groq)
 - [x] Groq interview prompts — question generation, follow-up, evaluation, feedback
 - [x] Interview state machine (10 states, pure function transitions)
 - [x] Audio utilities (MediaRecorder, AudioContext playback, blob conversion)
 - [x] Firestore DB layer — sessions, Q&A subcollection, feedback
-- [x] 5 API routes: `/api/interview/{question,evaluate,tts,stt,feedback}`
+- [x] 3 API routes: `/api/interview/{clarify,diagnose,feedback}`
 - [x] Interview setup page — type selection, company, question count, language
 - [x] Active interview page — state machine drives question/record/evaluate cycle
 - [x] Feedback report page — score ring, strengths/weaknesses, topic scores, suggestions
@@ -201,11 +200,10 @@ scripts/
 
 ## Known Issues / Pending Items
 
-- **Judge0 not active** — user needs to subscribe to Judge0 CE Basic plan on RapidAPI for code execution to work
-- **GitHub auth** — deferred, to be added later
-- **Deployment** — not decided yet (Vercel likely)
+- **Judge0 not active** — subscribe to Judge0 CE Basic plan on RapidAPI; set `JUDGE0_API_KEY` in `.env.local`
+- **Firebase Admin SDK optional** — set `FIREBASE_SERVICE_ACCOUNT_JSON` to enable server-side plan activation and admin stats; without it, payments return 503 and admin dashboard fails to load
+- **GitHub auth** — deferred
+- **Deployment** — Vercel recommended; set all env vars in the Vercel dashboard
 - **First admin setup** — manually set `role: "admin"` on one user doc in Firebase Console
-- **Firestore security rules** — need to add rules that check `role == "admin"` for write access to problems/contests
-- **DSA contest submissions** — currently records submission but doesn't run Judge0 for scoring in contest mode
+- **DSA contest submissions** — records submission but doesn't run Judge0 for scoring in contest mode
 - **Groq API key required** — add `GROQ_API_KEY` to `.env.local` for AI hints and mock interviews
-- **Sarvam API key required** — add `SARVAM_API_KEY` and `SARVAM_API_URL` to `.env.local` for voice in mock interviews

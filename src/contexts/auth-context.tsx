@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { onIdTokenChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import {
   signIn,
@@ -33,13 +33,31 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Persist the Firebase ID token in the httpOnly __session cookie. */
+async function syncSessionCookie(idToken: string | null): Promise<void> {
+  try {
+    if (idToken) {
+      await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+    } else {
+      await fetch("/api/auth/session", { method: "DELETE" });
+    }
+  } catch {
+    // Non-critical — the proxy check is optimistic.  Firestore rules and API
+    // route guards remain the authoritative enforcement layer.
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Track whether a sign-in handler already loaded the profile to avoid
-  // double-loading when onAuthStateChanged fires immediately after.
+  // double-loading when onIdTokenChanged fires immediately after sign-in.
   const profileLoadedBySignIn = useRef(false);
 
   async function loadProfile(firebaseUser: User) {
@@ -48,17 +66,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    // onIdTokenChanged fires on sign-in, sign-out, AND whenever Firebase
+    // refreshes the ID token (~every hour).  We use this instead of
+    // onAuthStateChanged so the __session cookie always contains a fresh token.
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+
       if (firebaseUser) {
-        // Skip if the sign-in handler already loaded the profile
+        // Sync the fresh token to the httpOnly session cookie.
+        const idToken = await firebaseUser.getIdToken();
+        syncSessionCookie(idToken);
+
         if (!profileLoadedBySignIn.current) {
           await loadProfile(firebaseUser);
         }
         profileLoadedBySignIn.current = false;
       } else {
         setProfile(null);
+        syncSessionCookie(null);
       }
+
       setLoading(false);
     });
 
@@ -87,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function handleSignOut() {
     await signOut();
     setProfile(null);
+    // Cookie is cleared by the onIdTokenChanged(null) callback above.
   }
 
   async function refreshProfile() {

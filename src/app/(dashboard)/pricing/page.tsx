@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/contexts/toast-context";
 import { PLAN_LIMITS, PLAN_PRICES, type PlanTier } from "@/lib/types/plans";
@@ -144,30 +142,8 @@ export default function PricingPage() {
               return;
             }
 
-            const verifyData = await verifyRes.json();
-            const { inr } = PLAN_PRICES[tier];
-
-            if (verifyData.plan && verifyData.planExpiresAt) {
-              // Server Admin SDK not configured — client performs Firestore writes as fallback
-              await Promise.all([
-                updateDoc(doc(db, "users", user.uid), {
-                  plan: tier,
-                  planExpiresAt: verifyData.planExpiresAt,
-                  updatedAt: serverTimestamp(),
-                }),
-                setDoc(doc(db, "payments", response.razorpay_payment_id), {
-                  userId: user.uid,
-                  plan: tier,
-                  amountInr: inr,
-                  orderId: response.razorpay_order_id,
-                  paymentId: response.razorpay_payment_id,
-                  planExpiresAt: verifyData.planExpiresAt,
-                  paidAt: serverTimestamp(),
-                }),
-              ]);
-            }
-            // When Admin SDK is configured the server already wrote plan + payment record.
-
+            // Plan and payment record are written exclusively server-side.
+            // The client never touches sensitive Firestore fields.
             await refreshProfile();
             showToast(`You're now on the ${PLANS.find((p) => p.tier === tier)?.name} plan!`, "success");
             router.push("/dashboard");

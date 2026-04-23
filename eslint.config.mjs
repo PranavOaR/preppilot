@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated / non-app directories:
+    ".firebase/**",
+    "judge0-gcp/**",
+    "scripts/**",
   ]),
 ]);
 

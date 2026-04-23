@@ -2,21 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
-import { getAllUsers, type UserWithId } from "@/lib/db/admin";
+import { useAuth } from "@/contexts/auth-context";
+import type { AdminStats } from "@/app/api/admin/stats/route";
 import type { PlanTier } from "@/lib/types/plans";
-
-interface AdminStats {
-  totalUsers: number;
-  totalProblems: number;
-  totalContests: number;
-  totalSubmissions: number;
-  flaggedUsers: number;
-  planCounts: Record<PlanTier, number>;
-  totalRevenueInr: number;
-  paymentsThisMonth: number;
-}
 
 const PLAN_COLORS: Record<PlanTier, string> = {
   free:    "text-on-surface-variant",
@@ -26,85 +14,37 @@ const PLAN_COLORS: Record<PlanTier, string> = {
 };
 
 export default function AdminDashboardPage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);
-  const [flaggedUsers, setFlaggedUsers] = useState<UserWithId[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!user) return;
+
     async function loadStats() {
       try {
-        const [problemsResult, contestsResult, submissionsResult, paymentsResult, usersResult] =
-          await Promise.allSettled([
-            getDocs(collection(db, "problems")),
-            getDocs(collection(db, "contests")),
-            getDocs(collection(db, "submissions")),
-            getDocs(collection(db, "payments")),
-            getAllUsers(),
-          ]);
-
-        const problemsSnap = problemsResult.status === "fulfilled" ? problemsResult.value : null;
-        const contestsSnap = contestsResult.status === "fulfilled" ? contestsResult.value : null;
-        const submissionsSnap = submissionsResult.status === "fulfilled" ? submissionsResult.value : null;
-        const paymentsSnap = paymentsResult.status === "fulfilled" ? paymentsResult.value : null;
-        const users = usersResult.status === "fulfilled" ? usersResult.value : [];
-
-        if (problemsResult.status === "rejected") console.error("problems fetch failed:", problemsResult.reason);
-        if (contestsResult.status === "rejected") console.error("contests fetch failed:", contestsResult.reason);
-        if (submissionsResult.status === "rejected") console.error("submissions fetch failed:", submissionsResult.reason);
-        if (paymentsResult.status === "rejected") console.error("payments fetch failed:", paymentsResult.reason);
-        if (usersResult.status === "rejected") console.error("users fetch failed:", usersResult.reason);
-
-        const planCounts: Record<PlanTier, number> = {
-          free: 0, starter: 0, pro: 0, premium: 0,
-        };
-        const flagged: UserWithId[] = [];
-        for (const u of users) {
-          const plan = (u.plan || "free") as PlanTier;
-          planCounts[plan] = (planCounts[plan] || 0) + 1;
-          if (u.isUnethical) flagged.push(u);
-        }
-        setFlaggedUsers(flagged);
-
-        const thisMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-        let totalRevenueInr = 0;
-        let paymentsThisMonth = 0;
-        for (const p of (paymentsSnap?.docs ?? [])) {
-          const d = p.data();
-          totalRevenueInr += d.amountInr || 0;
-          const paidAt = d.paidAt?.toDate?.()?.toISOString?.()?.slice(0, 7);
-          if (paidAt === thisMonth) paymentsThisMonth++;
-        }
-
-        setStats({
-          totalUsers: users.length,
-          totalProblems: problemsSnap?.size ?? 0,
-          totalContests: contestsSnap?.size ?? 0,
-          totalSubmissions: submissionsSnap?.size ?? 0,
-          flaggedUsers: flagged.length,
-          planCounts,
-          totalRevenueInr,
-          paymentsThisMonth,
+        const idToken = await user!.getIdToken();
+        const res = await fetch("/api/admin/stats", {
+          headers: { Authorization: `Bearer ${idToken}` },
         });
-
-        const subs = (submissionsSnap?.docs ?? [])
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a: any, b: any) => {
-            const aTime = a.submittedAt?.seconds || 0;
-            const bTime = b.submittedAt?.seconds || 0;
-            return bTime - aTime;
-          })
-          .slice(0, 10);
-        setRecentSubmissions(subs);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setError(err.error || `Error ${res.status}`);
+          return;
+        }
+        const data: AdminStats = await res.json();
+        setStats(data);
       } catch (err) {
         console.error("Failed to load admin stats:", err);
+        setError("Failed to load stats. Please refresh.");
       } finally {
         setLoading(false);
       }
     }
 
     loadStats();
-  }, []);
+  }, [user]);
 
   if (loading) {
     return (
@@ -115,6 +55,16 @@ export default function AdminDashboardPage() {
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <p className="text-error text-sm">{error}</p>
+      </div>
+    );
+  }
+
+  const flaggedUsers = (stats?.users ?? []).filter((u) => u.isUnethical);
 
   const statCards = [
     { label: "Total Users", value: stats?.totalUsers ?? 0, icon: "group", color: "text-blue-400", href: "/admin/users" },
@@ -138,7 +88,10 @@ export default function AdminDashboardPage() {
     },
   ];
 
-  const paidUsers = (stats?.planCounts.starter ?? 0) + (stats?.planCounts.pro ?? 0) + (stats?.planCounts.premium ?? 0);
+  const paidUsers =
+    (stats?.planCounts.starter ?? 0) +
+    (stats?.planCounts.pro ?? 0) +
+    (stats?.planCounts.premium ?? 0);
 
   return (
     <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 max-w-5xl">
@@ -228,33 +181,33 @@ export default function AdminDashboardPage() {
           </div>
           <div className="rounded-xl bg-surface-container-low subtle-border overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full min-w-[500px]">
-              <thead>
-                <tr className="border-b border-outline-variant/10">
-                  <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">User</th>
-                  <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Email</th>
-                  <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">University</th>
-                  <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">XP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {flaggedUsers.map((u) => (
-                  <tr key={u.id} className="border-b border-outline-variant/5 bg-red-500/5">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-error text-[14px]">flag</span>
-                        <span className="text-on-surface text-sm">{u.username || "—"}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-on-surface-variant text-sm">{u.email}</td>
-                    <td className="px-4 py-3 text-on-surface-variant text-sm">{u.university || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-primary-brand text-sm">{u.xp || 0}</span>
-                    </td>
+              <table className="w-full min-w-[500px]">
+                <thead>
+                  <tr className="border-b border-outline-variant/10">
+                    <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">User</th>
+                    <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Email</th>
+                    <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">University</th>
+                    <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">XP</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {flaggedUsers.map((u) => (
+                    <tr key={u.id} className="border-b border-outline-variant/5 bg-red-500/5">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-error text-[14px]">flag</span>
+                          <span className="text-on-surface text-sm">{u.username || "—"}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-on-surface-variant text-sm">{u.email}</td>
+                      <td className="px-4 py-3 text-on-surface-variant text-sm">{u.university || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-primary-brand text-sm">{u.xp || 0}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -291,39 +244,39 @@ export default function AdminDashboardPage() {
       {/* Recent Submissions */}
       <div className="space-y-3">
         <h2 className="text-on-surface font-medium">Recent Submissions</h2>
-        {recentSubmissions.length === 0 ? (
+        {(stats?.recentSubmissions ?? []).length === 0 ? (
           <p className="text-on-surface-variant text-sm">No submissions yet.</p>
         ) : (
           <div className="rounded-xl bg-surface-container-low subtle-border overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px]">
-              <thead>
-                <tr className="border-b border-outline-variant/10">
-                  <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">User</th>
-                  <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Problem</th>
-                  <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Status</th>
-                  <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Language</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentSubmissions.map((sub: any) => (
-                  <tr key={sub.id} className="border-b border-outline-variant/5 hover:bg-surface-container transition-colors">
-                    <td className="px-4 py-3 text-sm text-on-surface">{sub.userId?.slice(0, 8)}...</td>
-                    <td className="px-4 py-3 text-sm text-on-surface">{sub.problemTitle || sub.problemSlug || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        sub.status === "accepted"
-                          ? "bg-green-500/15 text-green-400"
-                          : "bg-red-500/15 text-red-400"
-                      }`}>
-                        {sub.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-on-surface-variant">{sub.language || "—"}</td>
+              <table className="w-full min-w-[480px]">
+                <thead>
+                  <tr className="border-b border-outline-variant/10">
+                    <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">User</th>
+                    <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Problem</th>
+                    <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Status</th>
+                    <th className="text-left text-on-surface-variant text-xs font-medium uppercase tracking-wider px-4 py-3">Language</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(stats?.recentSubmissions ?? []).map((sub) => (
+                    <tr key={sub.id} className="border-b border-outline-variant/5 hover:bg-surface-container transition-colors">
+                      <td className="px-4 py-3 text-sm text-on-surface">{sub.userId?.slice(0, 8)}...</td>
+                      <td className="px-4 py-3 text-sm text-on-surface">{sub.problemTitle || sub.problemSlug || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          sub.status === "accepted"
+                            ? "bg-green-500/15 text-green-400"
+                            : "bg-red-500/15 text-red-400"
+                        }`}>
+                          {sub.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-on-surface-variant">{sub.language || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
