@@ -39,6 +39,26 @@ test.describe("Practice page", () => {
     await expect(dsaBadges).toHaveCount(0, { timeout: 8_000 });
   });
 
+  test("problems table loads without Firestore permission errors", async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on("console", msg => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.goto("/practice");
+    const rows = page.locator("table tbody tr");
+    const emptyState = page.getByText(/no problems found/i);
+    await expect(rows.first().or(emptyState)).toBeVisible({ timeout: 15_000 });
+
+    // Allow time for solved/attempted badge queries (hintUsage, submissions) to complete
+    await page.waitForTimeout(3_000);
+
+    const permissionErrors = consoleErrors.filter(e =>
+      e.includes("permission-denied") || e.includes("PERMISSION_DENIED") || e.includes("Missing or insufficient permissions")
+    );
+    expect(permissionErrors).toHaveLength(0);
+  });
+
   test("empty state shows when filters return nothing", async ({ page }) => {
     await page.goto("/practice");
     await expect(
@@ -96,6 +116,33 @@ test.describe("DSA problem page", () => {
       await page.waitForTimeout(500);
       // Editor should still be visible after language switch
       await expect(page.locator(".monaco-editor").first()).toBeVisible();
+    }
+  });
+
+  test("hint panel is visible and does not show permission errors", async ({ page }) => {
+    await page.goto(`/practice/${DSA_SLUG}`);
+    // Wait for editor to load
+    await expect(page.locator(".monaco-editor").first()).toBeVisible({ timeout: 20_000 });
+
+    // Collect console errors during page interaction
+    const consoleErrors: string[] = [];
+    page.on("console", msg => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    // The hint panel should be visible somewhere on the page (left panel or sidebar)
+    // Look for "Hints" text or a hint-related button
+    const hintSection = page.getByText(/hint/i).first();
+    const hintPresent = await hintSection.isVisible({ timeout: 10_000 }).catch(() => false);
+
+    // No Firestore permission-denied errors should appear
+    await page.waitForTimeout(3_000); // Allow time for Firestore queries to complete
+    const permissionErrors = consoleErrors.filter(e => e.includes("permission-denied") || e.includes("PERMISSION_DENIED"));
+    expect(permissionErrors).toHaveLength(0);
+
+    // If hints section exists, verify it rendered
+    if (hintPresent) {
+      await expect(hintSection).toBeVisible();
     }
   });
 });

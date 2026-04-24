@@ -38,9 +38,9 @@ export async function getDiscussions(
     where("problemId", "==", problemId),
     where("parentId", "==", null),
     orderBy("createdAt", "desc"),
-    limit(pageSize),
   ];
   if (after) constraints.push(startAfter(after));
+  constraints.push(limit(pageSize));
 
   const q = query(collection(db, "discussions"), ...constraints);
   const snap = await getDocs(q);
