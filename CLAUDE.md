@@ -68,9 +68,9 @@ scripts/
 
 - `users/{userId}` — profile data (username, university, targetCompany, xp, streak, etc.)
 - `problems/{problemId}` — 91 problems (28 DSA + 63 aptitude)
-- `submissions/{submissionId}` — code submissions with verdicts
-- `userProgress/{progressId}` — per-topic solve counts
-- `activityLog/{activityId}` — daily activity for heatmap
+- `submissions/{submissionId}` — code submissions with verdicts (field: `submittedAt`)
+- `progress/{progressId}` — per-topic solve counts (doc ID: `{userId}_{topic}`)
+- `activity/{activityId}` — daily activity for heatmap (doc ID: `{userId}_{date}`)
 
 ## Problem Data
 
@@ -201,9 +201,11 @@ scripts/
 ## Known Issues / Pending Items
 
 - **Judge0 not active** — subscribe to Judge0 CE Basic plan on RapidAPI; set `JUDGE0_API_KEY` in `.env.local`
-- **Firebase Admin SDK optional** — set `FIREBASE_SERVICE_ACCOUNT_JSON` to enable server-side plan activation and admin stats; without it, payments return 503 and admin dashboard fails to load
+- **Firebase Admin SDK required for admin + payments** — set `FIREBASE_SERVICE_ACCOUNT_JSON`; without it payments return 503 and admin dashboard fails to load entirely
 - **GitHub auth** — deferred
 - **Deployment** — Vercel recommended; set all env vars in the Vercel dashboard
 - **First admin setup** — manually set `role: "admin"` on one user doc in Firebase Console
 - **DSA contest submissions** — records submission but doesn't run Judge0 for scoring in contest mode
 - **Groq API key required** — add `GROQ_API_KEY` to `.env.local` for AI hints and mock interviews
+- **Firestore deploy required after rule/index changes** — run `firebase deploy --only firestore` to push `firestore.rules` and `firestore.indexes.json`; without this, index/rule fixes are not live in production
+- **E2E test user** — create `testuser@preppilot.test` (password: see `.env.test.local`) in Firebase Console → Authentication before running the Playwright authenticated suite

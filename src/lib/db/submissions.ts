@@ -4,6 +4,8 @@ import {
   query,
   where,
   getDocs,
+  orderBy,
+  limit,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
@@ -36,19 +38,12 @@ export async function createSubmission(data: CreateSubmissionData) {
 export async function getUserSubmissions(userId: string, maxResults = 20) {
   const q = query(
     collection(db, SUBMISSIONS_COLLECTION),
-    where("userId", "==", userId)
+    where("userId", "==", userId),
+    orderBy("submittedAt", "desc"),
+    limit(maxResults)
   );
   const snapshot = await getDocs(q);
-  const docs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-  // Sort by submittedAt descending and limit client-side to avoid composite index
-  docs.sort((a, b) => {
-    const aTime = (a as Record<string, { seconds?: number }>).submittedAt?.seconds || 0;
-    const bTime = (b as Record<string, { seconds?: number }>).submittedAt?.seconds || 0;
-    return bTime - aTime;
-  });
-
-  return docs.slice(0, maxResults);
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
 
 export async function getUserSubmissionForProblem(

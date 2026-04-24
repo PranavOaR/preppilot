@@ -15,17 +15,29 @@ export default function BookmarksPage() {
   const { user } = useAuth();
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "dsa" | "aptitude">("all");
+
+  function loadBookmarks(uid: string, cancelled: { value: boolean }) {
+    getUserBookmarks(uid)
+      .then((b) => {
+        if (!cancelled.value) {
+          setBookmarks(b);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load bookmarks:", err);
+        if (!cancelled.value) setError("Failed to load bookmarks. Tap to retry.");
+      })
+      .finally(() => { if (!cancelled.value) setLoading(false); });
+  }
 
   useEffect(() => {
     if (!user) return;
-    let cancelled = false;
-    setLoading(true);
-    getUserBookmarks(user.uid)
-      .then((b) => { if (!cancelled) setBookmarks(b); })
-      .catch((err) => console.error("Failed to load bookmarks:", err))
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    const cancelled = { value: false };
+    loadBookmarks(user.uid, cancelled);
+    return () => { cancelled.value = true; };
   }, [user]);
 
   async function handleRemove(b: Bookmark) {
@@ -36,8 +48,12 @@ export default function BookmarksPage() {
     } catch (err) {
       console.error("Failed to remove bookmark:", err);
       // Re-fetch to recover if deletion failed
-      const fresh = await getUserBookmarks(user.uid);
-      setBookmarks(fresh);
+      try {
+        const fresh = await getUserBookmarks(user.uid);
+        setBookmarks(fresh);
+      } catch (fetchErr) {
+        console.error("Failed to recover bookmarks after remove error:", fetchErr);
+      }
     }
   }
 
@@ -86,6 +102,17 @@ export default function BookmarksPage() {
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-20 rounded-lg bg-surface-container-low animate-pulse" />
           ))}
+        </div>
+      ) : !loading && error !== null ? (
+        <div className="rounded-xl bg-surface-container-low subtle-border p-10 text-center space-y-3">
+          <span className="material-symbols-outlined text-outline text-5xl">wifi_off</span>
+          <p className="text-on-surface text-sm font-medium">{error}</p>
+          <button
+            onClick={() => { if (user) { setLoading(true); loadBookmarks(user.uid, { value: false }); } }}
+            className="inline-block mt-2 text-xs text-primary-brand hover:underline"
+          >
+            Retry
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl bg-surface-container-low subtle-border p-10 text-center space-y-3">
