@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/contexts/toast-context";
-import { useRouter } from "next/navigation";
 import { getProblems } from "@/lib/db/problems";
 import { useStreakFreeze } from "@/lib/xp/streaks";
 import { getUserContestParticipations } from "@/lib/db/contests";
@@ -41,7 +40,6 @@ interface ActivityData {
 export default function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
   const { showToast } = useToast();
-  const router = useRouter();
 
   const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
   const [activity, setActivity] = useState<ActivityData[]>([]);

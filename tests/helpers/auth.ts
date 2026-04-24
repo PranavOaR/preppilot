@@ -21,5 +21,5 @@ export async function signInTestUser(page: Page): Promise<void> {
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(password);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+  await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
 }

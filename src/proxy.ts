@@ -73,6 +73,7 @@ export const config = {
     "/admin/:path*",
     "/interview/:path*",
     "/mock-tests/:path*",
+    "/bookmarks",
     "/bookmarks/:path*",
     "/analytics/:path*",
     "/login",

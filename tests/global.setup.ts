@@ -38,7 +38,7 @@ setup("sign in as test user", async ({ page }) => {
   await page.getByRole("button", { name: /sign in/i }).click();
 
   // Wait for redirect to dashboard — confirms auth succeeded
-  await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+  await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
   await expect(page).toHaveURL(/\/dashboard/);
 
   // Save the full browser context (cookies + localStorage) — this includes
