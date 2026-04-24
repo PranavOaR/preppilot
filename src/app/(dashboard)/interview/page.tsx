@@ -48,26 +48,35 @@ export default function InterviewHistoryPage() {
 
     async function loadHistory() {
       try {
-        const [data, usageData] = await Promise.all([
+        const [dataResult, usageResult] = await Promise.allSettled([
           getUserInterviews(user!.uid),
           getUsage(user!.uid),
         ]);
+        const data = dataResult.status === "fulfilled" ? dataResult.value : [];
+        if (dataResult.status === "rejected") console.warn("Interview history: sessions failed", dataResult.reason);
+        if (usageResult.status === "rejected") console.warn("Interview history: usage failed", usageResult.reason);
         setSessions(data);
-        setQuotaPlan(usageData.plan);
-        setQuotaLimits(usageData.limits);
-        setQuotaUsage(usageData.usage);
-        setPurchasedCredits(usageData.purchasedInterviews);
+        if (usageResult.status === "fulfilled") {
+          const usageData = usageResult.value;
+          setQuotaPlan(usageData.plan);
+          setQuotaLimits(usageData.limits);
+          setQuotaUsage(usageData.usage);
+          setPurchasedCredits(usageData.purchasedInterviews);
+        }
 
         const completed = data.filter((s) => s.status === "completed");
-        const fbEntries = await Promise.all(
+        const fbSettled = await Promise.allSettled(
           completed.map(async (s) => {
             const fb = await getInterviewFeedback(s.id);
             return [s.id, fb] as [string, InterviewFeedback | null];
           })
         );
         const map: Record<string, InterviewFeedback> = {};
-        for (const [id, fb] of fbEntries) {
-          if (fb) map[id] = fb;
+        for (const result of fbSettled) {
+          if (result.status === "fulfilled") {
+            const [id, fb] = result.value;
+            if (fb) map[id] = fb;
+          }
         }
         setFeedbackMap(map);
       } finally {

@@ -72,27 +72,24 @@ export async function getUserHintsToday(userId: string): Promise<number> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Filter by userId and usedAt >= today at the Firestore level
-  const q = query(
-    collection(db, "hintUsage"),
-    where("userId", "==", userId),
-    where("usedAt", ">=", today)
-  );
+  const q = query(collection(db, "hintUsage"), where("userId", "==", userId));
   const snap = await getDocs(q);
-  return snap.size;
+  return snap.docs.filter((d) => {
+    const usedAt = d.data().usedAt;
+    if (!usedAt) return false;
+    const ts = usedAt.toDate ? usedAt.toDate() : new Date(usedAt.seconds * 1000);
+    return ts >= today;
+  }).length;
 }
 
 export async function getUserUnlockedLevels(
   userId: string,
   problemId: string
 ): Promise<number[]> {
-  const q = query(
-    collection(db, "hintUsage"),
-    where("userId", "==", userId),
-    where("problemId", "==", problemId)
-  );
+  const q = query(collection(db, "hintUsage"), where("userId", "==", userId));
   const snap = await getDocs(q);
   return snap.docs
+    .filter((d) => d.data().problemId === problemId)
     .map((d) => d.data().level as number)
     .filter((l) => l >= 1 && l <= 4)
     .sort((a, b) => a - b);

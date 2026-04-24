@@ -39,10 +39,14 @@ export function ProblemsTable({ filters, onCountChange }: ProblemsTableProps) {
 
     async function fetchUserStatus() {
       try {
-        const [solvedIds, allSubmissions] = await Promise.all([
+        const [solvedResult, submissionsResult] = await Promise.allSettled([
           getUserSolvedProblems(user!.uid),
           getUserSubmissions(user!.uid, 500),
         ]);
+        const solvedIds = solvedResult.status === "fulfilled" ? solvedResult.value : [];
+        const allSubmissions = submissionsResult.status === "fulfilled" ? submissionsResult.value : [];
+        if (solvedResult.status === "rejected") console.warn("ProblemsTable: solved ids failed", solvedResult.reason);
+        if (submissionsResult.status === "rejected") console.warn("ProblemsTable: submissions failed", submissionsResult.reason);
         setSolvedSet(new Set(solvedIds));
         const attempted = new Set<string>();
         for (const s of allSubmissions) {

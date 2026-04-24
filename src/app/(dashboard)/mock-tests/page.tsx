@@ -28,10 +28,14 @@ export default function MockTestsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [testsData, attemptsData] = await Promise.all([
+        const [testsResult, attemptsResult] = await Promise.allSettled([
           getMockTests(),
           user ? getAttemptsByUser(user.uid) : Promise.resolve([]),
         ]);
+        const testsData = testsResult.status === "fulfilled" ? testsResult.value : [];
+        const attemptsData = attemptsResult.status === "fulfilled" ? attemptsResult.value : [];
+        if (testsResult.status === "rejected") console.warn("MockTests: tests failed", testsResult.reason);
+        if (attemptsResult.status === "rejected") console.warn("MockTests: attempts failed", attemptsResult.reason);
         // Sort by company name
         testsData.sort((a, b) => a.company.localeCompare(b.company));
         setTests(testsData);

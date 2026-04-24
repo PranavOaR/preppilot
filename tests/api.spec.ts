@@ -43,6 +43,17 @@ test.describe("API auth guards", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("POST /api/hints returns 401 with no Authorization or Cookie header", async ({
+    request,
+  }) => {
+    // Sends the canonical { problemId, level } shape with no auth headers at all.
+    const res = await request.post("/api/hints", {
+      headers: {},
+      data: { problemId: "test", level: 1 },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test("PUT /api/user/profile returns 401 without token", async ({
     request,
   }) => {

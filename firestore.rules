@@ -119,8 +119,10 @@ service cloud.firestore {
     // ─── Hint Usage ───
     // doc ID: {userId}_{problemId}_level{N}
     match /hintUsage/{usageId} {
+      // Read uses field check so Firestore can verify where("userId","==",uid) queries.
+      // Write keeps doc-ID pattern (writes are always single-doc, not queries).
       allow read: if isSignedIn() &&
-        (usageId.matches(request.auth.uid + '_.*') || isAdmin());
+        (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isSignedIn() && usageId.matches(request.auth.uid + '_.*');
     }
 
@@ -161,7 +163,11 @@ service cloud.firestore {
     // ─── Bookmarks ───
     // doc ID: {userId}_{problemId}
     match /bookmarks/{bookmarkId} {
-      allow read, write: if isSignedIn() && bookmarkId.matches(request.auth.uid + '_.*');
+      // Read uses field check so Firestore can verify where("userId","==",uid) queries.
+      // Write keeps doc-ID pattern (writes are always single-doc, not queries).
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isSignedIn() && bookmarkId.matches(request.auth.uid + '_.*');
     }
 
     // ─── Editorials ───

@@ -35,10 +35,16 @@ export default function AnalyticsPage() {
         });
         const rankData = rankRes.ok ? await rankRes.json() : { percentile: 0 };
 
-        const [analyticsData, activityData] = await Promise.all([
+        const [analyticsResult, activityResult] = await Promise.allSettled([
           getUserAnalytics(user!.uid, rankData.percentile ?? 0),
           getActivityLog(user!.uid, 90),
         ]);
+        const analyticsData = analyticsResult.status === "fulfilled"
+          ? analyticsResult.value
+          : { topicAccuracies: [], totalAttempted: 0, totalCorrect: 0, overallAccuracy: 0, percentile: 0 };
+        const activityData = activityResult.status === "fulfilled" ? activityResult.value : [];
+        if (analyticsResult.status === "rejected") console.warn("Analytics: analytics failed", analyticsResult.reason);
+        if (activityResult.status === "rejected") console.warn("Analytics: activity failed", activityResult.reason);
         setAnalytics(analyticsData);
         setActivity(activityData as ActivityDay[]);
       } catch (err) {

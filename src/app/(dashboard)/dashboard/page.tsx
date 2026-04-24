@@ -57,13 +57,23 @@ export default function DashboardPage() {
     async function fetchData() {
       setDataLoading(true);
       try {
-        const [solvedIds, problemsResult, submissions, progressData, contests] = await Promise.all([
+        const [solvedIdsResult, problemsResultSettled, submissionsResult, progressDataResult, contestsResult] = await Promise.allSettled([
           getUserSolvedProblems(user!.uid),
           getProblems({ pageSize: 500 }),
           getUserSubmissions(user!.uid, 20),
           getUserProgress(user!.uid),
           getContests(),
         ]);
+        const solvedIds = solvedIdsResult.status === "fulfilled" ? solvedIdsResult.value : [];
+        const problemsResult = problemsResultSettled.status === "fulfilled" ? problemsResultSettled.value : { problems: [] };
+        const submissions = submissionsResult.status === "fulfilled" ? submissionsResult.value : [];
+        const progressData = progressDataResult.status === "fulfilled" ? progressDataResult.value : [];
+        const contests = contestsResult.status === "fulfilled" ? contestsResult.value : [];
+        if (solvedIdsResult.status === "rejected") console.warn("Dashboard: solvedIds failed", solvedIdsResult.reason);
+        if (problemsResultSettled.status === "rejected") console.warn("Dashboard: problems failed", problemsResultSettled.reason);
+        if (submissionsResult.status === "rejected") console.warn("Dashboard: submissions failed", submissionsResult.reason);
+        if (progressDataResult.status === "rejected") console.warn("Dashboard: progress failed", progressDataResult.reason);
+        if (contestsResult.status === "rejected") console.warn("Dashboard: contests failed", contestsResult.reason);
 
         if (cancelled) return;
 

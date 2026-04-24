@@ -101,10 +101,14 @@ export default function RoadmapPage() {
 
     async function fetchRoadmap() {
       try {
-        const [topicProgress, allProblemsResult] = await Promise.all([
+        const [topicProgressResult, allProblemsResultSettled] = await Promise.allSettled([
           getUserProgress(user!.uid),
           getProblems({ pageSize: 200 }),
         ]);
+        const topicProgress = topicProgressResult.status === "fulfilled" ? topicProgressResult.value : [];
+        const allProblemsResult = allProblemsResultSettled.status === "fulfilled" ? allProblemsResultSettled.value : { problems: [] };
+        if (topicProgressResult.status === "rejected") console.warn("Roadmap: progress failed", topicProgressResult.reason);
+        if (allProblemsResultSettled.status === "rejected") console.warn("Roadmap: problems failed", allProblemsResultSettled.reason);
 
         const progressMap: Record<string, { solved: number; attempted: number }> =
           {};
