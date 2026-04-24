@@ -68,11 +68,19 @@ export function subscribeToNotifications(
     orderBy("createdAt", "desc"),
     limit(30)
   );
-  return onSnapshot(q, (snap) => {
-    const notifications = snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    })) as AppNotification[];
-    callback(notifications);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const notifications = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as AppNotification[];
+      callback(notifications);
+    },
+    (err) => {
+      // Listener errors are non-fatal — log and leave the bell empty.
+      console.warn("[notifications] snapshot error:", err.code);
+      callback([]);
+    }
+  );
 }

@@ -65,6 +65,7 @@ export default function ProfilePage() {
   const [collegeRank, setCollegeRank] = useState<number | null>(null);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [collegeUsers, setCollegeUsers] = useState<number>(0);
+  const [ranksLoaded, setRanksLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -72,15 +73,24 @@ export default function ProfilePage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const [activityData, submissionsData, problemsResult, solvedIds] =
-          await Promise.all([
+        const [activityResult, submissionsResult, problemsResult, solvedResult] =
+          await Promise.allSettled([
             getActivityLog(user!.uid, 365),
             getUserSubmissions(user!.uid, 15),
             getProblems({ pageSize: 500 }),
             getUserSolvedProblems(user!.uid),
           ]);
 
-        const allProblems = problemsResult.problems;
+        const activityData = activityResult.status === "fulfilled" ? activityResult.value : [];
+        const submissionsData = submissionsResult.status === "fulfilled" ? submissionsResult.value : [];
+        const allProblems = problemsResult.status === "fulfilled" ? problemsResult.value.problems : [];
+        const solvedIds = solvedResult.status === "fulfilled" ? solvedResult.value : [];
+
+        // Log failures for debugging but don't crash
+        if (activityResult.status === "rejected") console.warn("Activity load failed:", activityResult.reason);
+        if (submissionsResult.status === "rejected") console.warn("Submissions load failed:", submissionsResult.reason);
+        if (problemsResult.status === "rejected") console.warn("Problems load failed:", problemsResult.reason);
+        if (solvedResult.status === "rejected") console.warn("Solved problems load failed:", solvedResult.reason);
 
         // Build problemId -> problem map for difficulty lookup
         const problemMap = new Map<string, Problem>();
@@ -144,7 +154,9 @@ export default function ProfilePage() {
             setCollegeRank(rankData.collegeRank);
             setCollegeUsers(rankData.collegeUsers ?? 0);
           }
-        } catch { /* ranking is non-critical */ }
+        } catch { /* ranking is non-critical */ } finally {
+          setRanksLoaded(true);
+        }
         try {
           const participations = await getUserContestParticipations(user!.uid);
           setContestHistory(participations);
@@ -344,13 +356,15 @@ export default function ProfilePage() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-on-surface-variant text-xs">Global Rank</p>
-            {globalRank ? (
+            {!ranksLoaded ? (
+              <p className="text-on-surface-variant text-sm">Calculating...</p>
+            ) : globalRank ? (
               <p className="text-on-surface font-semibold text-xl font-mono">
                 #{globalRank}
                 <span className="text-on-surface-variant text-xs font-normal ml-1.5">/ {totalUsers} users</span>
               </p>
             ) : (
-              <p className="text-on-surface-variant text-sm">Calculating...</p>
+              <p className="text-on-surface-variant text-sm">—</p>
             )}
           </div>
           <span className="material-symbols-outlined text-outline group-hover:text-on-surface-variant text-[18px] transition-colors">arrow_forward</span>
@@ -365,17 +379,17 @@ export default function ProfilePage() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-on-surface-variant text-xs">College Rank</p>
-            {profile.university ? (
-              collegeRank ? (
-                <p className="text-on-surface font-semibold text-xl font-mono">
-                  #{collegeRank}
-                  <span className="text-on-surface-variant text-xs font-normal ml-1.5">/ {collegeUsers} at {profile.university}</span>
-                </p>
-              ) : (
-                <p className="text-on-surface-variant text-sm">Calculating...</p>
-              )
-            ) : (
+            {!profile.university ? (
               <p className="text-on-surface-variant text-sm">Add your college in settings</p>
+            ) : !ranksLoaded ? (
+              <p className="text-on-surface-variant text-sm">Calculating...</p>
+            ) : collegeRank ? (
+              <p className="text-on-surface font-semibold text-xl font-mono">
+                #{collegeRank}
+                <span className="text-on-surface-variant text-xs font-normal ml-1.5">/ {collegeUsers} at {profile.university}</span>
+              </p>
+            ) : (
+              <p className="text-on-surface-variant text-sm">—</p>
             )}
           </div>
           <span className="material-symbols-outlined text-outline group-hover:text-on-surface-variant text-[18px] transition-colors">arrow_forward</span>

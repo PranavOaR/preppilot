@@ -65,16 +65,20 @@ service cloud.firestore {
     // ─── Progress ───
     // doc ID: {userId}_{topic}
     match /progress/{progressId} {
+      // Read uses a field check so Firestore can verify queries with where("userId", "==", uid).
+      // Write keeps the doc-ID pattern check (writes are always single-doc, not queries).
       allow read: if isSignedIn() &&
-        (progressId.matches(request.auth.uid + '_.*') || isAdmin());
+        (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isSignedIn() && progressId.matches(request.auth.uid + '_.*');
     }
 
     // ─── Activity Log ───
     // doc ID: {userId}_{date}
     match /activity/{activityId} {
+      // Read uses a field check so Firestore can verify queries with where("userId", "==", uid).
+      // Write keeps the doc-ID pattern check (writes are always single-doc, not queries).
       allow read: if isSignedIn() &&
-        (activityId.matches(request.auth.uid + '_.*') || isAdmin());
+        (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isSignedIn() && activityId.matches(request.auth.uid + '_.*');
     }
 

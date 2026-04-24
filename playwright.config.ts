@@ -31,7 +31,7 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         storageState: { cookies: [], origins: [] },
       },
-      testMatch: /\/(api|auth)\.spec\.ts/,
+      testMatch: /\/(api|auth|profile)\.spec\.ts/,
     },
 
     // Authenticated tests — use the shared-context fixture (fixtures.ts)

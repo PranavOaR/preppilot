@@ -58,15 +58,14 @@ export async function getActivityLog(userId: string, days = 365) {
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString().split("T")[0];
 
-  // Filter by userId and date >= startDateStr at the Firestore level
   const q = query(
     collection(db, ACTIVITY_COLLECTION),
-    where("userId", "==", userId),
-    where("date", ">=", startDateStr)
+    where("userId", "==", userId)
   );
   const snapshot = await getDocs(q);
 
   return snapshot.docs
     .map((d) => ({ id: d.id, ...d.data() }) as { id: string; date: string; problemsSolved: number; xpEarned: number })
+    .filter((a) => a.date >= startDateStr)
     .sort((a, b) => a.date.localeCompare(b.date));
 }
