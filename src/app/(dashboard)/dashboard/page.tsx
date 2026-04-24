@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { getUserSubmissions, getUserSolvedProblems } from "@/lib/db/submissions";
@@ -41,8 +41,6 @@ function getGreeting(): string {
 export default function DashboardPage() {
   const { user, profile, loading: authLoading } = useAuth();
 
-  const [solvedCount, setSolvedCount] = useState(0);
-  const [totalProblems, setTotalProblems] = useState(0);
   const [recentSubmissions, setRecentSubmissions] = useState<SubmissionItem[]>([]);
   const [weakTopics, setWeakTopics] = useState<{ topic: string; accuracy: number; solved: number; total: number }[]>([]);
   const [unsolved, setUnsolved] = useState<Problem[]>([]);
@@ -80,8 +78,6 @@ export default function DashboardPage() {
         const allProblems = problemsResult.problems;
         const solvedSet = new Set(solvedIds);
 
-        setSolvedCount(solvedSet.size);
-        setTotalProblems(allProblems.length);
         setRecentSubmissions(submissions.slice(0, 3) as SubmissionItem[]);
 
         // Today's solved count
