@@ -113,7 +113,7 @@ export function ContestCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-on-surface-variant">
+      <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant">
         <span className={`flex items-center gap-1 ${isActive ? "text-green-400 font-medium" : ""}`}>
           <span className="material-symbols-outlined text-[16px]">timer</span>
           {timeInfo}
@@ -128,7 +128,7 @@ export function ContestCard({
         </span>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center flex-wrap gap-2 sm:gap-3">
         <Link
           href={`/leaderboard/${contest.id}`}
           className="px-4 py-2 rounded-md text-xs font-medium bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors subtle-border"

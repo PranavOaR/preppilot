@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyIdToken, extractBearerToken } from "@/lib/firebase/verify-token";
+import { getAdminDb } from "@/lib/firebase/server";
 
 const GROQ_KEY = process.env.GROQ_API_KEY || "";
 
@@ -14,11 +15,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid token." }, { status: 401 });
   }
 
-  const adminUids = (process.env.ADMIN_UIDS || "")
-    .split(",")
-    .map((u) => u.trim())
-    .filter(Boolean);
-  if (adminUids.length === 0 || !adminUids.includes(authUser.uid)) {
+  const db = getAdminDb();
+  if (!db) {
+    return NextResponse.json({ error: "Admin SDK not configured." }, { status: 503 });
+  }
+  const userSnap = await db.collection("users").doc(authUser.uid).get();
+  if (!userSnap.exists || userSnap.data()?.role !== "admin") {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 

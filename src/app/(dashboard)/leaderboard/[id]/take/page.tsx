@@ -4,10 +4,9 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/auth-context";
-import { hasUserJoinedContest, submitContestAnswer } from "@/lib/db/contests";
+import { hasUserJoinedContest } from "@/lib/db/contests";
 import { getProblemById } from "@/lib/db/problems";
 import {
-  submitContestProblem,
   getContestUserSubmissions,
 } from "@/lib/db/contest-submissions";
 import { useContestRealtime } from "@/hooks/use-contest-realtime";
@@ -213,15 +212,16 @@ export default function ContestTakePage() {
       let isCorrect = false;
       let answer = "";
 
+      const idToken2 = await user?.getIdToken().catch(() => null);
+
       if (currentProblem.type === "aptitude") {
         answer = selectedOption;
-        isCorrect = selectedOption === currentProblem.correctAnswer;
+        // Server validates correctness — we pass the raw answer.
       } else {
         // Run code against test cases via Judge0 using mode:"run" to avoid
         // burning the user's monthly submit quota for contest practice.
-        answer = code;
+        answer = "failed";
         try {
-          const idToken2 = await user?.getIdToken().catch(() => null);
           const res = await fetch("/api/submissions", {
             method: "POST",
             headers: {
@@ -236,8 +236,8 @@ export default function ContestTakePage() {
             }),
           });
           const data = await res.json();
-          if (data.summary) {
-            isCorrect = data.summary.allPassed === true;
+          if (data.summary?.allPassed === true) {
+            answer = "passed";
           }
         } catch {
           // Judge0 unavailable — record submission as pending (isCorrect stays false)
@@ -245,17 +245,22 @@ export default function ContestTakePage() {
         }
       }
 
-      await submitContestProblem({
-        contestId,
-        userId: user.uid,
-        problemId: currentProblem.id,
-        answer,
-        isCorrect,
-        timeTakenSeconds: timeTaken,
+      // Submit through server-side API — validates aptitude answers and writes via Admin SDK.
+      const submitRes = await fetch("/api/contests/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken2 ? { Authorization: `Bearer ${idToken2}` } : {}),
+        },
+        body: JSON.stringify({
+          contestId,
+          problemId: currentProblem.id,
+          answer,
+          timeTaken,
+        }),
       });
-
-      // Also update contest participant score
-      await submitContestAnswer(contestId, user.uid, currentProblem.id, isCorrect, timeTaken);
+      const submitData = await submitRes.json();
+      isCorrect = submitData.isCorrect === true;
 
       setSubmittedIds((prev) => new Set([...prev, currentProblem.id]));
       if (isCorrect) {

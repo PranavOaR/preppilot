@@ -59,7 +59,7 @@ export function HintPanel({ problem }: HintPanelProps) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${idToken}`,
           },
-          body: JSON.stringify({ problem, hintLevel: level }),
+          body: JSON.stringify({ problemId: problem.id, hintLevel: level }),
         });
 
         const data = await res.json();

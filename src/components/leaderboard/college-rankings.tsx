@@ -28,12 +28,12 @@ export function CollegeRankings({ colleges, currentUserUniversity }: CollegeRank
 
   return (
     <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
-      <div className="grid grid-cols-[60px_1fr_100px_80px_100px] px-5 py-3 border-b border-outline-variant/10">
+      <div className="grid grid-cols-[44px_1fr_80px] sm:grid-cols-[60px_1fr_100px_80px_100px] px-4 sm:px-5 py-3 border-b border-outline-variant/10 gap-2">
         <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider">Rank</span>
         <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider">College</span>
         <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider text-right">Total XP</span>
-        <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider text-right">Members</span>
-        <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider text-right">Avg XP</span>
+        <span className="hidden sm:block text-on-surface-variant text-xs font-medium uppercase tracking-wider text-right">Members</span>
+        <span className="hidden sm:block text-on-surface-variant text-xs font-medium uppercase tracking-wider text-right">Avg XP</span>
       </div>
 
       {colleges.map((college, index) => {
@@ -45,7 +45,7 @@ export function CollegeRankings({ colleges, currentUserUniversity }: CollegeRank
         return (
           <div
             key={college.university}
-            className={`grid grid-cols-[60px_1fr_100px_80px_100px] items-center px-5 py-4 border-b border-outline-variant/5 transition-colors ${
+            className={`grid grid-cols-[44px_1fr_80px] sm:grid-cols-[60px_1fr_100px_80px_100px] items-center px-4 sm:px-5 py-4 border-b border-outline-variant/5 gap-2 transition-colors ${
               isMyCollege
                 ? "bg-primary-container/10 border-l-2 border-l-primary-brand"
                 : "hover:bg-surface-container"
@@ -69,29 +69,29 @@ export function CollegeRankings({ colleges, currentUserUniversity }: CollegeRank
               )}
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${
                 isMyCollege ? "bg-primary-container/30" : "bg-surface-container-high"
               }`}>
-                <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
+                <span className="material-symbols-outlined text-[14px] sm:text-[16px] text-on-surface-variant">
                   school
                 </span>
               </div>
-              <span className={`text-sm font-medium ${isMyCollege ? "text-primary-brand" : "text-on-surface"}`}>
+              <span className={`text-xs sm:text-sm font-medium truncate ${isMyCollege ? "text-primary-brand" : "text-on-surface"}`}>
                 {college.university}
                 {isMyCollege && (
-                  <span className="ml-2 text-[10px] text-primary-brand/70">(your college)</span>
+                  <span className="ml-2 text-[10px] text-primary-brand/70 hidden sm:inline">(your college)</span>
                 )}
               </span>
             </div>
 
-            <span className="font-mono text-primary-brand text-sm text-right">
+            <span className="font-mono text-primary-brand text-xs sm:text-sm text-right">
               {college.totalXp.toLocaleString()}
             </span>
-            <span className="font-mono text-on-surface-variant text-sm text-right">
+            <span className="hidden sm:block font-mono text-on-surface-variant text-sm text-right">
               {college.userCount}
             </span>
-            <span className="font-mono text-on-surface-variant text-sm text-right">
+            <span className="hidden sm:block font-mono text-on-surface-variant text-sm text-right">
               {college.avgXp}
             </span>
           </div>

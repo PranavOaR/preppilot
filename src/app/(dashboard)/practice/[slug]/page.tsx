@@ -125,6 +125,9 @@ export default function ProblemPage() {
 
   async function handleRun() {
     if (!problem) return;
+    // Guard against rapid double-clicks: disabled prop on Button only becomes
+    // effective after the state re-renders, so we also bail early here.
+    if (running || submitting || runCooldown > 0) return;
 
     // Client-side quota check (runs with authenticated Firestore context)
     if (user) {
@@ -230,6 +233,7 @@ export default function ProblemPage() {
 
   async function handleSubmit() {
     if (!problem) return;
+    if (running || submitting) return;
 
     // Client-side quota check
     if (user) {
@@ -443,7 +447,7 @@ export default function ProblemPage() {
         <div className="lg:grid lg:grid-cols-2" style={{ minHeight: "calc(100vh - 140px)" }}>
           {/* Left: Problem Description / Editorial / Discuss */}
           <div
-            className={`flex flex-col border-r border-outline-variant/10 overflow-hidden ${mobilePanelTab === "description" ? "flex" : "hidden lg:flex"}`}
+            className={`flex-col border-r border-outline-variant/10 overflow-hidden min-w-0 ${mobilePanelTab === "description" ? "flex" : "hidden lg:flex"}`}
             style={{ maxHeight: "calc(100vh - 140px)" }}
           >
             {/* Left panel tab nav */}
@@ -609,8 +613,8 @@ export default function ProblemPage() {
 
           {/* Right: Editor + Results */}
           <div
-            className={`flex flex-col ${mobilePanelTab === "code" ? "block" : "hidden lg:flex"}`}
-            style={{ maxHeight: "calc(100vh - 140px)" }}
+            className={`flex-col overflow-hidden min-w-0 ${mobilePanelTab === "code" ? "flex" : "hidden lg:flex"}`}
+            style={{ maxHeight: "calc(100vh - 140px)", minHeight: "calc(100vh - 140px)" }}
           >
             {/* Language Tabs */}
             <div className="flex items-center justify-between px-4 py-2 bg-surface-container border-b border-outline-variant/10 shrink-0">
@@ -739,7 +743,7 @@ export default function ProblemPage() {
             )}
 
             {/* Action Bar */}
-            <div className="px-4 py-3 bg-surface-container border-t border-outline-variant/10 shrink-0 space-y-2">
+            <div className="px-3 sm:px-4 py-3 bg-surface-container border-t border-outline-variant/10 shrink-0 space-y-2">
               {/* Usage indicators */}
               {profile && (() => {
                 const plan = profile.plan || "free";
@@ -750,7 +754,7 @@ export default function ProblemPage() {
                 const runsLeft = limits.dsaRuns - runsUsed;
                 const submitsLeft = limits.dsaSubmits - submitsUsed;
                 return (
-                  <div className="flex items-center gap-4 text-[10px]">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]">
                     <span className={getUsageColor(runsUsed, limits.dsaRuns)}>
                       {runsLeft <= 0 ? (
                         <Link href="/pricing" className="underline">Out of runs — Upgrade →</Link>
@@ -768,27 +772,27 @@ export default function ProblemPage() {
                   </div>
                 );
               })()}
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
                 <Button
                   variant="ghost"
                   onClick={handleRun}
                   disabled={running || submitting || !code.trim() || runCooldown > 0}
                   title={runCooldown > 0 ? `Edit code to run again, or wait ${runCooldown}s` : undefined}
-                  className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high text-sm h-9 cursor-pointer disabled:opacity-40"
+                  className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high text-xs sm:text-sm h-9 px-3 cursor-pointer disabled:opacity-40"
                 >
                   {running ? (
                     <>
-                      <span className="material-symbols-outlined text-[16px] mr-1 animate-spin">progress_activity</span>
+                      <span className="material-symbols-outlined text-[14px] sm:text-[16px] mr-1 animate-spin">progress_activity</span>
                       Running...
                     </>
                   ) : runCooldown > 0 ? (
                     <>
-                      <span className="material-symbols-outlined text-[16px] mr-1">timer</span>
+                      <span className="material-symbols-outlined text-[14px] sm:text-[16px] mr-1">timer</span>
                       {runCooldown}s
                     </>
                   ) : (
                     <>
-                      <span className="material-symbols-outlined text-[16px] mr-1">play_arrow</span>
+                      <span className="material-symbols-outlined text-[14px] sm:text-[16px] mr-1">play_arrow</span>
                       Run Tests
                     </>
                   )}
@@ -796,16 +800,16 @@ export default function ProblemPage() {
                 <Button
                   onClick={handleSubmit}
                   disabled={running || submitting || !code.trim()}
-                  className="gradient-primary text-on-primary font-medium px-5 h-9 hover:opacity-90 transition-opacity text-sm cursor-pointer disabled:opacity-40"
+                  className="gradient-primary text-on-primary font-medium px-4 sm:px-5 h-9 hover:opacity-90 transition-opacity text-xs sm:text-sm cursor-pointer disabled:opacity-40"
                 >
                   {submitting ? (
                     <>
-                      <span className="material-symbols-outlined text-[16px] mr-1 animate-spin">progress_activity</span>
+                      <span className="material-symbols-outlined text-[14px] sm:text-[16px] mr-1 animate-spin">progress_activity</span>
                       Submitting...
                     </>
                   ) : (
                     <>
-                      <span className="material-symbols-outlined text-[16px] mr-1">upload</span>
+                      <span className="material-symbols-outlined text-[14px] sm:text-[16px] mr-1">upload</span>
                       Submit
                     </>
                   )}

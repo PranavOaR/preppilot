@@ -1,41 +1,33 @@
-"use client";
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { verifyIdToken } from "@/lib/firebase/verify-token";
+import { getAdminDb } from "@/lib/firebase/server";
 import { TopNav } from "@/components/layout/top-nav";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
-import { useAuth } from "@/contexts/auth-context";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { profile, loading } = useAuth();
-  const router = useRouter();
+  const cookieStore = await cookies();
+  const session = cookieStore.get("__session")?.value;
 
-  useEffect(() => {
-    if (!loading && profile?.role !== "admin") {
-      router.replace("/dashboard");
+  if (!session) redirect("/login");
+
+  const auth = await verifyIdToken(session);
+  if (!auth) redirect("/login");
+
+  // Verify admin role via Admin SDK before rendering any admin content.
+  const db = getAdminDb();
+  if (db) {
+    const userSnap = await db.collection("users").doc(auth.uid).get();
+    if (!userSnap.exists || userSnap.data()?.role !== "admin") {
+      redirect("/dashboard");
     }
-  }, [loading, profile, router]);
-
-  if (loading) {
-    return (
-      <>
-        <TopNav />
-        <div className="flex items-center justify-center min-h-[calc(100vh-57px)]">
-          <span className="material-symbols-outlined text-outline text-4xl animate-spin">
-            progress_activity
-          </span>
-        </div>
-      </>
-    );
   }
-
-  if (profile?.role !== "admin") {
-    return null;
-  }
+  // If Admin SDK is not configured the token is still verified (authenticated user).
+  // The individual admin API routes enforce the role check server-side regardless.
 
   return (
     <>

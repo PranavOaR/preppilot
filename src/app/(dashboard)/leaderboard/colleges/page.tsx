@@ -63,7 +63,7 @@ export default function CollegeLeaderboardPage() {
   }
 
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+    <main className="max-w-4xl mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -116,7 +116,7 @@ export default function CollegeLeaderboardPage() {
       ) : (
         <div className="rounded-lg bg-surface-container-low subtle-border overflow-hidden">
           {/* Header */}
-          <div className="grid grid-cols-[44px_1fr_60px_80px] sm:grid-cols-[60px_1fr_120px_80px] px-4 sm:px-5 py-3 border-b border-outline-variant/10">
+          <div className="grid grid-cols-[40px_1fr_70px] sm:grid-cols-[60px_1fr_120px_80px] px-3 sm:px-5 py-3 border-b border-outline-variant/10 gap-2">
             <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider">Rank</span>
             <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider">User</span>
             <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider text-center hidden sm:block">College</span>
@@ -132,7 +132,7 @@ export default function CollegeLeaderboardPage() {
               return (
                 <div
                   key={u.uid}
-                  className={`grid grid-cols-[44px_1fr_60px_80px] sm:grid-cols-[60px_1fr_120px_80px] items-center px-4 sm:px-5 py-3 border-b border-outline-variant/5 transition-colors ${
+                  className={`grid grid-cols-[40px_1fr_70px] sm:grid-cols-[60px_1fr_120px_80px] items-center px-3 sm:px-5 py-3 border-b border-outline-variant/5 gap-2 transition-colors ${
                     isMe ? "bg-primary-container/10 border-l-2 border-l-primary-brand" : "hover:bg-surface-container"
                   }`}
                 >
@@ -151,7 +151,7 @@ export default function CollegeLeaderboardPage() {
                     </div>
                   </div>
                   <span className="text-xs text-on-surface-variant truncate text-center hidden sm:block">{u.university || "—"}</span>
-                  <span className="font-mono text-primary-brand text-sm text-right">{u.xp.toLocaleString()}</span>
+                  <span className="font-mono text-primary-brand text-xs sm:text-sm text-right tabular-nums">{u.xp.toLocaleString()}</span>
                 </div>
               );
             })

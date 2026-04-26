@@ -4,10 +4,11 @@ import { getProblemBySlug } from "@/lib/db/problems";
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
+  const { slug } = await params;
   try {
-    const problem = await getProblemBySlug(params.slug);
+    const problem = await getProblemBySlug(slug);
     if (!problem) return { title: "Problem | PrepPilot" };
     const diffMap = { easy: "Easy", medium: "Medium", hard: "Hard" };
     const typeLabel = problem.type === "dsa" ? "DSA" : "Aptitude";
@@ -24,7 +25,7 @@ export async function generateMetadata({
       },
     };
   } catch {
-    const title = (params.slug ?? "problem")
+    const title = (slug ?? "problem")
       .replace(/-/g, " ")
       .replace(/\b\w/g, (c) => c.toUpperCase());
     return { title: `${title} | PrepPilot` };

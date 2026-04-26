@@ -23,6 +23,7 @@ export function BookmarkButton({ problem, compact = false }: BookmarkButtonProps
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState("");
   const [savedNote, setSavedNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -45,6 +46,7 @@ export function BookmarkButton({ problem, compact = false }: BookmarkButtonProps
   async function handleToggle() {
     if (!user || saving) return;
     setSaving(true);
+    setError(null);
     try {
       if (bookmarked) {
         await removeBookmark(user.uid, problem.id);
@@ -66,6 +68,12 @@ export function BookmarkButton({ problem, compact = false }: BookmarkButtonProps
       }
     } catch (err) {
       console.error("Bookmark toggle failed:", err);
+      const msg = err instanceof Error ? err.message : "";
+      setError(
+        msg.includes("permission")
+          ? "Couldn't save bookmark — permission denied."
+          : "Couldn't save bookmark. Please try again."
+      );
     } finally {
       setSaving(false);
     }
@@ -74,6 +82,7 @@ export function BookmarkButton({ problem, compact = false }: BookmarkButtonProps
   async function handleSaveNote() {
     if (!user || saving) return;
     setSaving(true);
+    setError(null);
     try {
       if (!bookmarked) {
         await addBookmark({
@@ -94,6 +103,12 @@ export function BookmarkButton({ problem, compact = false }: BookmarkButtonProps
       setShowNote(false);
     } catch (err) {
       console.error("Save note failed:", err);
+      const msg = err instanceof Error ? err.message : "";
+      setError(
+        msg.includes("permission")
+          ? "Couldn't save note — permission denied."
+          : "Couldn't save note. Please try again."
+      );
     } finally {
       setSaving(false);
     }
@@ -121,8 +136,8 @@ export function BookmarkButton({ problem, compact = false }: BookmarkButtonProps
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
+    <div className="w-full max-w-full min-w-0 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={handleToggle}
           disabled={loading || saving}
@@ -147,14 +162,20 @@ export function BookmarkButton({ problem, compact = false }: BookmarkButtonProps
         </button>
       </div>
 
+      {error && (
+        <div className="text-xs text-error bg-error/10 px-3 py-2 rounded-lg break-words">
+          {error}
+        </div>
+      )}
+
       {showNote && (
-        <div className="space-y-2 rounded-lg bg-surface-container-low subtle-border p-3">
+        <div className="space-y-2 rounded-lg bg-surface-container-low subtle-border p-3 w-full min-w-0">
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Your notes — approach, gotchas, things to remember..."
             rows={4}
-            className="w-full bg-surface-container text-on-surface text-sm rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-1 focus:ring-primary-brand"
+            className="w-full block bg-surface-container text-on-surface text-sm rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-1 focus:ring-primary-brand"
           />
           <div className="flex items-center justify-end gap-2">
             <button
@@ -175,7 +196,7 @@ export function BookmarkButton({ problem, compact = false }: BookmarkButtonProps
       )}
 
       {!showNote && savedNote && (
-        <div className="rounded-lg bg-surface-container-low subtle-border px-3 py-2 text-xs text-on-surface-variant whitespace-pre-wrap">
+        <div className="rounded-lg bg-surface-container-low subtle-border px-3 py-2 text-xs text-on-surface-variant whitespace-pre-wrap break-words w-full min-w-0 overflow-hidden">
           <span className="text-outline mr-1.5">Note:</span>{savedNote}
         </div>
       )}

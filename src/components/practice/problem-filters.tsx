@@ -62,8 +62,8 @@ export function ProblemFilters({ filters, onFilterChange, resultCount, totalCoun
       </div>
 
       {/* Difficulty + Company Filters */}
-      <div className="flex items-center gap-3 overflow-x-auto scrollbar-none pb-1 flex-nowrap sm:flex-wrap">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-none pb-1 flex-nowrap sm:flex-wrap">
+        <div className="flex items-center gap-2 shrink-0">
           {difficulties.map((d) => (
             <button
               key={d.label}
@@ -73,7 +73,7 @@ export function ProblemFilters({ filters, onFilterChange, resultCount, totalCoun
                   difficulty: filters.difficulty === d.value ? undefined : d.value,
                 })
               }
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 filters.difficulty === d.value
                   ? d.color
                   : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
@@ -93,7 +93,7 @@ export function ProblemFilters({ filters, onFilterChange, resultCount, totalCoun
               company: e.target.value || undefined,
             })
           }
-          className="h-8 rounded-md bg-surface-container text-on-surface-variant text-xs px-3 outline-none focus:ring-1 focus:ring-primary-brand/40"
+          className="h-8 shrink-0 rounded-md bg-surface-container text-on-surface-variant text-xs px-3 outline-none focus:ring-1 focus:ring-primary-brand/40"
         >
           <option value="">All Companies</option>
           {companies.map((c) => (
@@ -107,7 +107,7 @@ export function ProblemFilters({ filters, onFilterChange, resultCount, totalCoun
         {filters.topic && (
           <button
             onClick={() => onFilterChange({ ...filters, topic: undefined })}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-tertiary-container/30 text-tertiary cursor-pointer hover:bg-tertiary-container/50 transition-colors duration-150"
+            className="flex items-center gap-1.5 h-8 px-3 shrink-0 rounded-md text-xs font-medium bg-tertiary-container/30 text-tertiary cursor-pointer hover:bg-tertiary-container/50 transition-colors duration-150"
           >
             Topic: {filters.topic.replace(/-/g, " ")}
             <span className="material-symbols-outlined text-[14px]">close</span>

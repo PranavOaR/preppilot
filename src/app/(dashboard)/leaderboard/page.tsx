@@ -85,7 +85,7 @@ export default function ContestsPage() {
     : contests.filter((c) => computeContestStatus(c) === activeTab);
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-2">
@@ -109,18 +109,18 @@ export default function ContestsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-lg bg-surface-container-low subtle-border">
+      <div className="flex gap-1 p-1 rounded-lg bg-surface-container-low subtle-border overflow-x-auto scrollbar-none">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+            className={`flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-md text-[11px] sm:text-xs font-medium whitespace-nowrap transition-colors ${
               activeTab === tab.key
                 ? "bg-surface-container-high text-on-surface"
                 : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50"
             }`}
           >
-            <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
+            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">{tab.icon}</span>
             {tab.label}
           </button>
         ))}

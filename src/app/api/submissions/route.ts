@@ -781,15 +781,23 @@ export async function POST(request: NextRequest) {
       mode: "run" | "submit";
     };
 
+    if (!code || !language || !testCases) {
+      return Response.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    if (typeof code !== "string" || code.length > 65536) {
+      return Response.json({ error: "Code exceeds 64 KB limit." }, { status: 413 });
+    }
+
+    if (!Array.isArray(testCases) || testCases.length > 20) {
+      return Response.json({ error: "Too many test cases (max 20)." }, { status: 400 });
+    }
+
     // Server-side quota enforcement (when Admin SDK is configured)
     const quotaAction = mode === "run" ? "dsaRun" : "dsaSubmit";
     const allowed = await serverCheckQuota(authUser.uid, quotaAction);
     if (!allowed) {
       return Response.json({ error: "Quota exceeded. Upgrade your plan for more." }, { status: 429 });
-    }
-
-    if (!code || !language || !testCases) {
-      return Response.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const languageId = LANGUAGE_IDS[language];

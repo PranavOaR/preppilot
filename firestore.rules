@@ -92,19 +92,21 @@ service cloud.firestore {
     // doc ID: {contestId}_{userId}
     match /contestParticipants/{participantId} {
       allow read: if isSignedIn();
-      // Only the participant themselves can create/update their own record
+      // Only the participant themselves can create their own record (joining).
+      // Score/time updates go through the server-side API (Admin SDK bypasses rules).
       allow create: if isSignedIn() && participantId.matches('.*_' + request.auth.uid);
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if false;
       allow delete: if isAdmin();
     }
 
     // ─── Contest Submissions ───
     // doc ID: {contestId}_{userId}_{problemId}
+    // All writes go through /api/contests/submit (Admin SDK) to validate answers server-side.
     match /contestSubmissions/{submissionId} {
       allow read: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if false;
+      allow update: if false;
       allow delete: if isAdmin();
     }
 
@@ -181,9 +183,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && (
-        // Only allow updating upvotes field for non-owners, full update for owner
+        // Non-owners may only update the upvotes field.
+        // Owners may only update content (not userId, problemId, parentId, etc.).
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']) ||
-        resource.data.userId == request.auth.uid
+        (resource.data.userId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'updatedAt']))
       );
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
