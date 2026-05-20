@@ -2,10 +2,6 @@
 
 Technical interview preparation platform for Indian IT companies. Think LeetCode meets mock interviews, targeted at TCS, Infosys, Wipro, Zoho, Flipkart, and similar.
 
-## System Architecture
-
-![PrepPilot System Architecture](docs/architecture.png)
-
 ## Stack
 
 | Layer | Tech |
