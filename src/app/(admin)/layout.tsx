@@ -19,15 +19,19 @@ export default async function AdminLayout({
   if (!auth) redirect("/login");
 
   // Verify admin role via Admin SDK before rendering any admin content.
+  // Fail closed: if Admin SDK is absent or Firestore is unreachable, deny access.
   const db = getAdminDb();
-  if (db) {
+  if (!db) redirect("/dashboard");
+
+  try {
     const userSnap = await db.collection("users").doc(auth.uid).get();
     if (!userSnap.exists || userSnap.data()?.role !== "admin") {
       redirect("/dashboard");
     }
+  } catch (err) {
+    console.error("Admin role check failed:", err);
+    redirect("/dashboard");
   }
-  // If Admin SDK is not configured the token is still verified (authenticated user).
-  // The individual admin API routes enforce the role check server-side regardless.
 
   return (
     <>

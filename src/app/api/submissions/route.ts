@@ -739,7 +739,7 @@ async function serverCheckQuota(userId: string, action: "dsaRun" | "dsaSubmit"):
       if (data.planExpiresAt && Date.now() > (data.planExpiresAt as number)) return "free";
       return p;
     })();
-    const limits = PLAN_LIMITS[plan];
+    const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.free;
 
     const stored = data.usageThisMonth as MonthlyUsage | undefined;
     const month = currentMonth();
@@ -791,6 +791,10 @@ export async function POST(request: NextRequest) {
 
     if (!Array.isArray(testCases) || testCases.length > 20) {
       return Response.json({ error: "Too many test cases (max 20)." }, { status: 400 });
+    }
+
+    if (mode !== "run" && mode !== "submit") {
+      return Response.json({ error: "Invalid mode. Must be 'run' or 'submit'." }, { status: 400 });
     }
 
     // Server-side quota enforcement (when Admin SDK is configured)

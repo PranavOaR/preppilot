@@ -93,8 +93,12 @@ service cloud.firestore {
     match /contestParticipants/{participantId} {
       allow read: if isSignedIn();
       // Only the participant themselves can create their own record (joining).
+      // The data.userId field check is the authoritative guard; the ID-pattern check
+      // is a secondary defence. Both must pass to prevent ID-spoofing attacks.
       // Score/time updates go through the server-side API (Admin SDK bypasses rules).
-      allow create: if isSignedIn() && participantId.matches('.*_' + request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && participantId.matches('.*_' + request.auth.uid);
       allow update: if false;
       allow delete: if isAdmin();
     }
