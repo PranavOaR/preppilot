@@ -1,4 +1,4 @@
-# PrepPilot - Data base Disconnected due to billing issue
+# PrepPilot
 
 Technical interview preparation platform for Indian IT companies. Think LeetCode meets mock interviews, targeted at TCS, Infosys, Wipro, Zoho, Flipkart, and similar.
 
